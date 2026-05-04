@@ -1,0 +1,10 @@
+1- this is a multitenant application for allow employees to add thier attendance through mobile app and this laravel app will be the backend and admin for this app
+     first I need to add the following models:
+     Users: who will have access to admin portal not the employees (will added later)
+     and have the following name, email, countrycode, mobile, password, is_admin, is_supervisor, add column for prefrered theme and language or separate table as you see it is best
+     practice, status (active/inactive/suspended).
+     And in @resources/js/pages/_shared/sidebar.vue add icon(Inertia Link) to users and add Index page to show users with pagination and intime search and crud pages , migrations,
+     formrequest, controller and so on to and don't forget to have tenant id for every model we will create now and later
+     don't run migrate until I run it manually ( some of implementation already done but I hit the limit in usage and not complete so complete the work)
+
+
