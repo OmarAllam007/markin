@@ -6,7 +6,7 @@ declare const toastr: {
     info(message: string, title?: string): void;
 };
 
-toastr.options = {
+const TOASTR_OPTIONS = {
     closeButton: false,
     debug: false,
     newestOnTop: false,
@@ -24,11 +24,22 @@ toastr.options = {
     hideMethod: 'fadeOut',
 };
 
+let configured = false;
+
+function call(method: 'success' | 'error' | 'warning' | 'info', message: string, title?: string) {
+    if (typeof window === 'undefined' || typeof toastr === 'undefined') return;
+    if (!configured) {
+        toastr.options = TOASTR_OPTIONS;
+        configured = true;
+    }
+    toastr[method](message, title ?? '');
+}
+
 export function useToast() {
-    const success = (message: string, title?: string) => toastr.success(message, title ?? '');
-    const error = (message: string, title?: string) => toastr.error(message, title ?? '');
-    const warning = (message: string, title?: string) => toastr.warning(message, title ?? '');
-    const info = (message: string, title?: string) => toastr.info(message, title ?? '');
+    const success = (message: string, title?: string) => call('success', message, title);
+    const error = (message: string, title?: string) => call('error', message, title);
+    const warning = (message: string, title?: string) => call('warning', message, title);
+    const info = (message: string, title?: string) => call('info', message, title);
 
     return { success, error, warning, info };
 }

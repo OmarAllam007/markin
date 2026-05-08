@@ -3,11 +3,16 @@ import { switchMethod as switchTenantRoute } from '@/actions/App/Http/Controller
 import { index as departmentsIndex } from '@/routes/departments';
 import { index as locationsIndex } from '@/routes/locations';
 import { index as usersIndex } from '@/routes/users';
+import { index as announcementsIndex } from '@/routes/announcements';
+import { index as employeesIndex } from '@/routes/employees';
 import { index as workShiftsIndex } from '@/routes/work-shifts';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import SettingsModal from '@/pages/_shared/SettingsModal.vue';
 
-type TenantOption = { id: number; name: string; parent_id: number | null };
+const settingsOpen = ref(false);
+
+type TenantOption = { id: number; name: string; parent_id: number | null; [key: string]: unknown };
 
 const page = usePage<{
     auth: {
@@ -159,20 +164,16 @@ const switchTenant = (tenantId: number) => {
                         <!--begin::Col-->
                         <div class="col-4">
                             <!--begin::Link-->
-                            <a
-                                href="apps/calendar.html"
+                            <Link
+                                :href="employeesIndex.url()"
                                 class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
                                 data-kt-button="true"
                             >
-                                <!--begin::Icon-->
                                 <span class="mb-2">
-                                    <i class="ki-outline ki-calendar fs-1"></i>
+                                    <i class="ki-outline ki-people fs-1"></i>
                                 </span>
-                                <!--end::Icon-->
-                                <!--begin::Label-->
                                 <span class="fs-7 fw-bold">Employees</span>
-                                <!--end::Label-->
-                            </a>
+                            </Link>
                             <!--end::Link-->
                         </div>
                         <!--end::Col-->
@@ -230,10 +231,27 @@ const switchTenant = (tenantId: number) => {
                         <!--begin::Col-->
                         <div class="col-4">
                             <!--begin::Link-->
-                            <a
-                                href="apps/file-manager/folders.html"
+                            <Link
+                                :href="announcementsIndex.url()"
                                 class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
                                 data-kt-button="true"
+                            >
+                                <span class="mb-2">
+                                    <i class="ki-outline ki-notification-bing fs-1"></i>
+                                </span>
+                                <span class="fs-7 fw-bold">Notifications</span>
+                            </Link>
+                            <!--end::Link-->
+                        </div>
+                        <!--end::Col-->
+                        <!--begin::Col-->
+                        <div class="col-4">
+                            <!--begin::Link-->
+                            <button
+                                type="button"
+                                class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                                data-kt-button="true"
+                                @click="settingsOpen = true"
                             >
                                 <!--begin::Icon-->
                                 <span class="mb-2">
@@ -243,7 +261,7 @@ const switchTenant = (tenantId: number) => {
                                 <!--begin::Label-->
                                 <span class="fs-7 fw-bold">Settings</span>
                                 <!--end::Label-->
-                            </a>
+                            </button>
                             <!--end::Link-->
                         </div>
                         <!--end::Col-->
@@ -280,6 +298,13 @@ const switchTenant = (tenantId: number) => {
         <!--end::Sidebar nav-->
     </div>
     <!--end::Sidebar-->
+
+    <Teleport to="body">
+        <SettingsModal
+            v-if="settingsOpen"
+            @close="settingsOpen = false"
+        />
+    </Teleport>
 </template>
 
 <style scoped>
