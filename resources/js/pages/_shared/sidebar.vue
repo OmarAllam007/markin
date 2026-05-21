@@ -6,6 +6,9 @@ import { index as usersIndex } from '@/routes/users';
 import { index as announcementsIndex } from '@/routes/announcements';
 import { index as employeesIndex } from '@/routes/employees';
 import { index as workShiftsIndex } from '@/routes/work-shifts';
+import { index as attendancesIndex } from '@/routes/attendances';
+import { index as reportsIndexRoute } from '@/routes/reports/index';
+import { index as zkMachinesIndex } from '@/routes/zk-machines/index';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import SettingsModal from '@/pages/_shared/SettingsModal.vue';
@@ -20,6 +23,9 @@ const page = usePage<{
         switchableTenants: TenantOption[];
     };
 }>();
+
+const currentPath = computed(() => new URL(page.url, 'http://x').pathname);
+const isActive = (path: string) => currentPath.value.startsWith(path);
 
 const currentTenant = computed(() => page.props.auth?.currentTenant ?? null);
 const switchableTenants = computed(
@@ -167,6 +173,7 @@ const switchTenant = (tenantId: number) => {
                             <Link
                                 :href="employeesIndex.url()"
                                 class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                                :class="{ active: isActive('/employees') }"
                                 data-kt-button="true"
                             >
                                 <span class="mb-2">
@@ -183,6 +190,7 @@ const switchTenant = (tenantId: number) => {
                             <Link
                                 :href="locationsIndex.url()"
                                 class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                                :class="{ active: isActive('/locations') }"
                                 data-kt-button="true"
                             >
                                 <span class="mb-2">
@@ -202,6 +210,7 @@ const switchTenant = (tenantId: number) => {
                             <Link
                                 :href="departmentsIndex.url()"
                                 class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                                :class="{ active: isActive('/departments') }"
                                 data-kt-button="true"
                             >
                                 <span class="mb-2">
@@ -218,6 +227,7 @@ const switchTenant = (tenantId: number) => {
                             <Link
                                 :href="workShiftsIndex.url()"
                                 class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                                :class="{ active: isActive('/work-shifts') }"
                                 data-kt-button="true"
                             >
                                 <span class="mb-2">
@@ -234,6 +244,7 @@ const switchTenant = (tenantId: number) => {
                             <Link
                                 :href="announcementsIndex.url()"
                                 class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                                :class="{ active: isActive('/announcements') }"
                                 data-kt-button="true"
                             >
                                 <span class="mb-2">
@@ -242,6 +253,36 @@ const switchTenant = (tenantId: number) => {
                                 <span class="fs-7 fw-bold">Notifications</span>
                             </Link>
                             <!--end::Link-->
+                        </div>
+                        <!--end::Col-->
+                        <!--begin::Col-->
+                        <div class="col-4">
+                            <Link
+                                :href="attendancesIndex.url()"
+                                class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                                :class="{ active: isActive('/attendances') }"
+                                data-kt-button="true"
+                            >
+                                <span class="mb-2">
+                                    <i class="ki-outline ki-calendar-tick fs-1"></i>
+                                </span>
+                                <span class="fs-7 fw-bold">Attendance</span>
+                            </Link>
+                        </div>
+                        <!--end::Col-->
+                        <!--begin::Col-->
+                        <div class="col-4">
+                            <Link
+                                :href="reportsIndexRoute.url()"
+                                class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                                :class="{ active: isActive('/reports') }"
+                                data-kt-button="true"
+                            >
+                                <span class="mb-2">
+                                    <i class="ki-outline ki-chart-line fs-1"></i>
+                                </span>
+                                <span class="fs-7 fw-bold">Reports</span>
+                            </Link>
                         </div>
                         <!--end::Col-->
                         <!--begin::Col-->
@@ -283,12 +324,26 @@ const switchTenant = (tenantId: number) => {
                         <Link
                             :href="usersIndex.url()"
                             class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                            :class="{ active: isActive('/users') }"
                             data-kt-button="true"
                         >
                             <span class="mb-2">
                                 <i class="ki-outline ki-users fs-1"></i>
                             </span>
                             <span class="fs-7 fw-bold">Admin Users</span>
+                        </Link>
+                    </div>
+                    <div class="col-4">
+                        <Link
+                            :href="zkMachinesIndex.url()"
+                            class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                            :class="{ active: isActive('/zk-machines') }"
+                            data-kt-button="true"
+                        >
+                            <span class="mb-2">
+                                <i class="ki-outline ki-fingerprint-scanning fs-1"></i>
+                            </span>
+                            <span class="fs-7 fw-bold">ZK Machines</span>
                         </Link>
                     </div>
                 </div>

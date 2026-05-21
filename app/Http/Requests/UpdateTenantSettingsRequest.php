@@ -42,6 +42,7 @@ class UpdateTenantSettingsRequest extends FormRequest
             'send_reminders' => ['boolean'],
             'allow_remote_checkin' => ['boolean'],
             'allow_any_location_checkin' => ['boolean'],
+            'timezone' => ['required', 'string', 'timezone:all'],
         ];
     }
 }

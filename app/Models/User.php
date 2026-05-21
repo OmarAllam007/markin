@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 
@@ -80,5 +81,31 @@ class User extends Authenticatable
         }
 
         return Tenant::whereIn('id', array_unique($allIds))->orderBy('name')->get();
+    }
+
+    public function permissions(): HasMany
+    {
+        return $this->hasMany(UserPermission::class);
+    }
+
+    public function locationAccess(): BelongsToMany
+    {
+        return $this->belongsToMany(Location::class, 'user_location_access')
+            ->withPivot('tenant_id');
+    }
+
+    public function departmentAccess(): BelongsToMany
+    {
+        return $this->belongsToMany(Department::class, 'user_department_access')
+            ->withPivot('tenant_id');
+    }
+
+    public function hasPermission(string $module, string $action, int $tenantId): bool
+    {
+        return $this->permissions()
+            ->where('tenant_id', $tenantId)
+            ->where('module', $module)
+            ->where('action', $action)
+            ->exists();
     }
 }

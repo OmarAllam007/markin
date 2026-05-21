@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { update, index } from '@/routes/employees';
+import { index as employeeAttendanceIndex } from '@/routes/employees/attendance';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
@@ -139,9 +140,18 @@ const STEPS = [
             </Link>
         </div>
         <div class="card">
-            <div class="card-header border-0 d-flex align-items-center">
+            <div class="card-header border-0 d-flex align-items-center flex-wrap gap-3">
                 <div class="card-title">
                     <h2 class="fw-bold">Edit employee</h2>
+                </div>
+                <div class="card-toolbar ms-auto">
+                    <Link
+                        :href="employeeAttendanceIndex.url({ employee: employee.id })"
+                        class="btn btn-sm btn-light-primary"
+                    >
+                        <i class="ki-outline ki-calendar-tick fs-4"></i>
+                        Attendance history
+                    </Link>
                 </div>
             </div>
 

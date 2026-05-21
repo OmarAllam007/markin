@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { update as settingsUpdate } from '@/routes/tenant/settings';
 import { useForm, usePage } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 type Tab = 'general' | 'attendance';
 
@@ -17,6 +17,7 @@ type CompanySettings = {
     terms: string | null;
     policy: string | null;
     logo_url: string | null;
+    timezone: string;
     attendance_via: string;
     checkin_before_minutes: number | null;
     checkout_after_minutes: number | null;
@@ -35,8 +36,18 @@ type CurrentTenant = {
     settings: CompanySettings | null;
 };
 
-const page = usePage<{ auth: { currentTenant: CurrentTenant | null } }>();
+const page = usePage<{ auth: { currentTenant: CurrentTenant | null }; timezones: string[] }>();
 const s = page.props.auth?.currentTenant?.settings;
+
+const groupedTimezones = computed(() => {
+    const groups: Record<string, string[]> = {};
+    for (const tz of page.props.timezones) {
+        const group = tz.includes('/') ? tz.split('/')[0] : 'Other';
+        if (!groups[group]) groups[group] = [];
+        groups[group].push(tz);
+    }
+    return groups;
+});
 
 const activeTab = ref<Tab>('general');
 const logoPreview = ref<string | null>(s?.logo_url ?? null);
@@ -55,6 +66,7 @@ const form = useForm({
     terms:                       s?.terms ?? '',
     policy:                      s?.policy ?? '',
     logo:                        null as File | null,
+    timezone:                    s?.timezone ?? 'UTC',
 
     attendance_via:              s?.attendance_via ?? 'all',
     checkin_before_minutes:      s?.checkin_before_minutes ?? null,
@@ -270,6 +282,35 @@ function submit() {
                                 v-if="form.errors.company_email"
                                 class="invalid-feedback"
                             >{{ form.errors.company_email }}</div>
+                        </div>
+                    </div>
+
+                    <!-- Timezone -->
+                    <div class="row g-5 mb-5">
+                        <div class="col-12">
+                            <label class="form-label">Timezone</label>
+                            <select
+                                v-model="form.timezone"
+                                class="form-select"
+                                :class="{ 'is-invalid': form.errors.timezone }"
+                            >
+                                <optgroup
+                                    v-for="(zones, region) in groupedTimezones"
+                                    :key="region"
+                                    :label="String(region)"
+                                >
+                                    <option
+                                        v-for="tz in zones"
+                                        :key="tz"
+                                        :value="tz"
+                                    >{{ tz }}</option>
+                                </optgroup>
+                            </select>
+                            <div
+                                v-if="form.errors.timezone"
+                                class="invalid-feedback"
+                            >{{ form.errors.timezone }}</div>
+                            <div class="fs-8 text-muted mt-1">All attendance times are calculated and displayed in this timezone</div>
                         </div>
                     </div>
 

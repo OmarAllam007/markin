@@ -36,6 +36,8 @@ class UpdateWorkShiftRequest extends FormRequest
             'break_start_from' => ['nullable', 'date_format:H:i'],
             'break_start_to' => ['nullable', 'date_format:H:i', 'after:break_start_from'],
             'break_apply_as_overtime' => ['boolean'],
+            'late_checkin_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:120'],
+            'early_checkout_grace_minutes' => ['nullable', 'integer', 'min:0', 'max:120'],
         ];
     }
 }

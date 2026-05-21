@@ -1,18 +1,23 @@
 <?php
 
 use App\Http\Controllers\AnnouncementController;
+use App\Http\Controllers\AttendanceController;
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
 use App\Http\Controllers\Auth\RegisteredUserController;
+use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\LocationController;
+use App\Http\Controllers\ProfileController;
+use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkShiftController;
+use App\Http\Controllers\ZkMachineController;
 use Illuminate\Support\Facades\Route;
 
-Route::inertia('/', 'Home')->name('home');
+Route::get('/', DashboardController::class)->middleware('auth')->name('home');
 
 Route::middleware('guest')->group(function () {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
@@ -24,6 +29,8 @@ Route::middleware('guest')->group(function () {
 Route::post('logout', [AuthenticatedSessionController::class, 'destroy'])->middleware('auth')->name('logout');
 
 Route::middleware('auth')->group(function () {
+    Route::get('profile', [ProfileController::class, 'edit'])->name('profile.edit');
+    Route::put('profile', [ProfileController::class, 'update'])->name('profile.update');
     Route::resource('users', UserController::class)->except(['show']);
     Route::resource('locations', LocationController::class)->except(['show']);
     Route::resource('departments', DepartmentController::class)->except(['show']);
@@ -31,9 +38,27 @@ Route::middleware('auth')->group(function () {
     Route::get('employees/import', [EmployeeController::class, 'importForm'])->name('employees.import');
     Route::post('employees/import', [EmployeeController::class, 'importStore'])->name('employees.import.store');
     Route::get('employees/import-template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
+    Route::get('employees/{employee}/attendance', [AttendanceController::class, 'employeeHistory'])->name('employees.attendance.index');
+    Route::post('attendances/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendances.approve');
+    Route::post('attendances/{attendance}/lock', [AttendanceController::class, 'lock'])->name('attendances.lock');
     Route::resource('employees', EmployeeController::class)->except(['show']);
+    Route::resource('attendances', AttendanceController::class);
     Route::resource('announcements', AnnouncementController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
+    Route::resource('zk-machines', ZkMachineController::class)->except(['show']);
     Route::post('tenant/switch', [TenantController::class, 'switch'])->name('tenant.switch');
     Route::post('tenants', [TenantController::class, 'store'])->name('tenants.store');
     Route::post('tenant/settings', [TenantSettingsController::class, 'update'])->name('tenant.settings.update');
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('/', [ReportController::class, 'index'])->name('index');
+        Route::get('overtime', [ReportController::class, 'overtime'])->name('overtime');
+        Route::get('daily-summary', [ReportController::class, 'dailySummary'])->name('daily-summary');
+        Route::get('daily-summary/group-detail', [ReportController::class, 'dailySummaryGroupDetail'])->name('daily-summary.group-detail');
+        Route::get('monthly-summary', [ReportController::class, 'monthlySummary'])->name('monthly-summary');
+        Route::get('detailed-report', [ReportController::class, 'detailedReport'])->name('detailed-report');
+        Route::post('detailed-report/manual-attendance', [ReportController::class, 'storeManualAttendance'])->name('detailed-report.manual-attendance');
+        Route::get('late-arrivals', [ReportController::class, 'lateArrivals'])->name('late-arrivals');
+        Route::get('absence-report', [ReportController::class, 'absenceReport'])->name('absence-report');
+        Route::get('missing-punches', [ReportController::class, 'missingPunches'])->name('missing-punches');
+        Route::get('department-attendance', [ReportController::class, 'departmentAttendance'])->name('department-attendance');
+    });
 });

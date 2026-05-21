@@ -2,11 +2,16 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Enums\UserStatus;
 use App\Http\Requests\StoreUserRequest;
 use App\Http\Requests\UpdateUserRequest;
+use App\Models\Department;
+use App\Models\Location;
 use App\Models\Tenant;
 use App\Models\User;
+use App\Models\UserPermission;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -67,14 +72,15 @@ class UserController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $tenantId = $request->user()->current_tenant_id;
+
         return Inertia::render('users/Create', [
-            'statuses' => collect(UserStatus::cases())->map(fn ($s) => [
-                'value' => $s->value,
-                'label' => $s->label(),
-                'color' => $s->color(),
-            ]),
+            'statuses' => $this->statusOptions(),
+            'permissionModules' => $this->permissionModuleOptions(),
+            'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+            'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -95,16 +101,18 @@ class UserController extends Controller
             'country_code' => $data['country_code'],
             'mobile' => $data['mobile'],
             'password' => $data['password'],
-            'preferred_theme' => $data['preferred_theme'],
-            'preferred_language' => $data['preferred_language'],
             'current_tenant_id' => $tenantId,
         ]);
 
         $user->tenants()->attach($tenantId, [
-            'is_admin' => $data['is_admin'],
-            'is_supervisor' => $data['is_supervisor'],
+            'is_admin' => $data['is_admin'] ?? false,
+            'is_supervisor' => $data['is_supervisor'] ?? false,
             'status' => $data['status'],
         ]);
+
+        $this->syncPermissions($user, $tenantId, $data['permissions'] ?? []);
+        $this->syncLocationAccess($user, $tenantId, $data['location_ids'] ?? []);
+        $this->syncDepartmentAccess($user, $tenantId, $data['department_ids'] ?? []);
 
         return redirect()->route('users.index')->with('success', 'User created successfully.');
     }
@@ -117,18 +125,34 @@ class UserController extends Controller
             ? $user->tenants()->where('tenants.id', $tenantId)->first()
             : null;
 
+        $userPermissions = $tenantId
+            ? $user->permissions()->where('tenant_id', $tenantId)->get(['module', 'action'])
+                ->map(fn ($p) => ['module' => $p->module->value, 'action' => $p->action->value])
+                ->values()
+            : collect();
+
+        $userLocationIds = $tenantId
+            ? $user->locationAccess()->wherePivot('tenant_id', $tenantId)->pluck('locations.id')
+            : collect();
+
+        $userDepartmentIds = $tenantId
+            ? $user->departmentAccess()->wherePivot('tenant_id', $tenantId)->pluck('departments.id')
+            : collect();
+
         return Inertia::render('users/Edit', [
             'user' => array_merge($user->toArray(), [
                 'is_admin' => $membership?->pivot->is_admin ?? false,
                 'is_supervisor' => $membership?->pivot->is_supervisor ?? false,
                 'status' => $membership?->pivot->status?->value ?? UserStatus::Active->value,
+                'permissions' => $userPermissions,
+                'location_ids' => $userLocationIds->values(),
+                'department_ids' => $userDepartmentIds->values(),
             ]),
             'isSelf' => $user->id === $currentUser->id,
-            'statuses' => collect(UserStatus::cases())->map(fn ($s) => [
-                'value' => $s->value,
-                'label' => $s->label(),
-                'color' => $s->color(),
-            ]),
+            'statuses' => $this->statusOptions(),
+            'permissionModules' => $this->permissionModuleOptions(),
+            'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+            'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
         ]);
     }
 
@@ -138,7 +162,7 @@ class UserController extends Controller
         $tenantId = $request->user()->current_tenant_id;
         $isSelf = $user->id === $request->user()->id;
 
-        $userFields = Arr::only($data, ['email', 'country_code', 'mobile', 'preferred_theme', 'preferred_language']);
+        $userFields = Arr::only($data, ['email', 'country_code', 'mobile']);
         if (! $isSelf) {
             $userFields['name'] = $data['name'];
         }
@@ -150,13 +174,18 @@ class UserController extends Controller
 
         if (! $isSelf && $tenantId) {
             $this->authorizesTenantAccess($request, $tenantId);
+
             $user->tenants()->syncWithoutDetaching([
                 $tenantId => [
-                    'is_admin' => $data['is_admin'],
-                    'is_supervisor' => $data['is_supervisor'],
+                    'is_admin' => $data['is_admin'] ?? false,
+                    'is_supervisor' => $data['is_supervisor'] ?? false,
                     'status' => $data['status'],
                 ],
             ]);
+
+            $this->syncPermissions($user, $tenantId, $data['permissions'] ?? []);
+            $this->syncLocationAccess($user, $tenantId, $data['location_ids'] ?? []);
+            $this->syncDepartmentAccess($user, $tenantId, $data['department_ids'] ?? []);
         }
 
         return redirect()->route('users.index')->with('success', 'User updated successfully.');
@@ -178,6 +207,76 @@ class UserController extends Controller
         $tenant = Tenant::findOrFail($tenantId);
         if (! $request->user()->canAccessTenant($tenant)) {
             abort(403, 'You do not have access to this tenant.');
+        }
+    }
+
+    /** @return array<int, array{value: string, label: string, color: string}> */
+    private function statusOptions(): array
+    {
+        return collect(UserStatus::cases())->map(fn ($s) => [
+            'value' => $s->value,
+            'label' => $s->label(),
+            'color' => $s->color(),
+        ])->all();
+    }
+
+    /** @return array<int, array{key: string, label: string, actions: array<int, array{value: string, label: string}>}> */
+    private function permissionModuleOptions(): array
+    {
+        return collect(PermissionModule::cases())->map(fn (PermissionModule $module) => [
+            'key' => $module->value,
+            'label' => $module->label(),
+            'actions' => collect($module->allowedActions())->map(fn (PermissionAction $action) => [
+                'value' => $action->value,
+                'label' => $action->label(),
+            ])->all(),
+        ])->all();
+    }
+
+    /** @param array<int, array{module: string, action: string}> $permissions */
+    private function syncPermissions(User $user, int $tenantId, array $permissions): void
+    {
+        $user->permissions()->where('tenant_id', $tenantId)->delete();
+
+        $records = collect($permissions)->map(fn ($p) => [
+            'user_id' => $user->id,
+            'tenant_id' => $tenantId,
+            'module' => $p['module'],
+            'action' => $p['action'],
+            'created_at' => now(),
+            'updated_at' => now(),
+        ])->all();
+
+        if (! empty($records)) {
+            UserPermission::insert($records);
+        }
+    }
+
+    /** @param array<int, int> $locationIds */
+    private function syncLocationAccess(User $user, int $tenantId, array $locationIds): void
+    {
+        $user->locationAccess()->wherePivot('tenant_id', $tenantId)->detach();
+
+        $sync = collect($locationIds)->mapWithKeys(fn ($id) => [
+            $id => ['tenant_id' => $tenantId],
+        ])->all();
+
+        if (! empty($sync)) {
+            $user->locationAccess()->attach($sync);
+        }
+    }
+
+    /** @param array<int, int> $departmentIds */
+    private function syncDepartmentAccess(User $user, int $tenantId, array $departmentIds): void
+    {
+        $user->departmentAccess()->wherePivot('tenant_id', $tenantId)->detach();
+
+        $sync = collect($departmentIds)->mapWithKeys(fn ($id) => [
+            $id => ['tenant_id' => $tenantId],
+        ])->all();
+
+        if (! empty($sync)) {
+            $user->departmentAccess()->attach($sync);
         }
     }
 }

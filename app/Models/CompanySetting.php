@@ -16,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'attendance_via', 'checkin_before_minutes', 'checkout_after_minutes',
     'allow_temporary_shifts', 'temporary_shift_calculation',
     'check_biometrics', 'send_reminders', 'allow_remote_checkin', 'allow_any_location_checkin',
+    'timezone',
 ])]
 class CompanySetting extends Model
 {

@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { destroy as logout } from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
-import { usePage, router } from '@inertiajs/vue3';
-import { computed } from 'vue';
+import { edit as profileEdit } from '@/actions/App/Http/Controllers/ProfileController';
+import { usePage, router, Link } from '@inertiajs/vue3';
+import { computed, onMounted, ref } from 'vue';
 
 type UserRef = { name: string; email: string };
 
@@ -13,6 +14,53 @@ const currentUser = computed(() => page.props.auth?.user ?? null);
 const signOut = () => {
     router.post(logout.url());
 };
+
+// ── Theme mode ───────────────────────────────────────────────────────────────
+type ThemeMode = 'light' | 'dark' | 'system';
+
+const THEME_STORAGE_KEY = 'data-bs-theme';
+const themeMode = ref<ThemeMode>('light');
+
+function resolveSystemTheme(): 'light' | 'dark' {
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+}
+
+function applyTheme(mode: ThemeMode) {
+    themeMode.value = mode;
+    localStorage.setItem(THEME_STORAGE_KEY, mode);
+    const resolved = mode === 'system' ? resolveSystemTheme() : mode;
+    document.documentElement.setAttribute('data-bs-theme', resolved);
+}
+
+onMounted(() => {
+    const stored = (localStorage.getItem(THEME_STORAGE_KEY) ?? 'light') as ThemeMode;
+    applyTheme(stored);
+});
+
+// ── Language ─────────────────────────────────────────────────────────────────
+type Lang = 'en' | 'ar';
+
+const currentLang = ref<Lang>('en');
+
+const languages: { code: Lang; label: string; flag: string; dir: 'ltr' | 'rtl' }[] = [
+    { code: 'en', label: 'English', flag: 'assets/media/flags/united-states.svg', dir: 'ltr' },
+    { code: 'ar', label: 'Arabic', flag: 'assets/media/flags/saudi-arabia.svg', dir: 'rtl' },
+];
+
+const currentLangEntry = computed(() => languages.find((l) => l.code === currentLang.value)!);
+
+function applyLang(lang: Lang) {
+    currentLang.value = lang;
+    localStorage.setItem('app-lang', lang);
+    const entry = languages.find((l) => l.code === lang)!;
+    document.documentElement.setAttribute('dir', entry.dir);
+    document.documentElement.setAttribute('lang', lang);
+}
+
+onMounted(() => {
+    const stored = (localStorage.getItem('app-lang') ?? 'en') as Lang;
+    applyLang(stored);
+});
 </script>
 
 <template>
@@ -43,46 +91,7 @@ const signOut = () => {
                     <div class="app-header-menu app-header-mobile-drawer align-items-start align-items-lg-center w-100" data-kt-drawer="true" data-kt-drawer-name="app-header-menu" data-kt-drawer-activate="{default: true, lg: false}" data-kt-drawer-overlay="true" data-kt-drawer-width="250px" data-kt-drawer-direction="end" data-kt-drawer-toggle="#kt_app_header_menu_toggle" data-kt-swapper="true" data-kt-swapper-mode="{default: 'append', lg: 'prepend'}" data-kt-swapper-parent="{default: '#kt_app_body', lg: '#kt_app_header_menu_wrapper'}">
                         <!--begin::Menu-->
                         <div class="menu menu-rounded menu-column menu-lg-row menu-active-bg menu-state-primary menu-title-gray-700 menu-arrow-gray-500 menu-bullet-gray-500 my-5 my-lg-0 align-items-stretch fw-semibold px-2 px-lg-0" id="#kt_header_menu" data-kt-menu="true">
-                            <!--begin:Menu item-->
-                            <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start" data-kt-menu-offset="-100,0" class="menu-item here show menu-here-bg menu-lg-down-accordion me-0 me-lg-2">
-                                <!--begin:Menu link-->
-                                <span class="menu-link">
-												<span class="menu-title">Dashboards</span>
-												<span class="menu-arrow d-lg-none"></span>
-											</span>
-                                <!--end:Menu link-->
-                            </div>
-                            <!--end:Menu item-->
-                            <!--begin:Menu item-->
-                            <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start" data-kt-menu-offset="-300,0" class="menu-item menu-lg-down-accordion me-0 me-lg-2">
-                                <!--begin:Menu link-->
-                                <span class="menu-link">
-												<span class="menu-title">Pages</span>
-												<span class="menu-arrow d-lg-none"></span>
-											</span>
-                                <!--end:Menu link-->
-                            </div>
-                            <!--end:Menu item-->
-                            <!--begin:Menu item-->
-                            <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start" class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention me-0 me-lg-2">
-                                <!--begin:Menu link-->
-                                <span class="menu-link">
-												<span class="menu-title">Apps</span>
-												<span class="menu-arrow d-lg-none"></span>
-											</span>
-                                <!--end:Menu link-->
-                            </div>
-                            <!--end:Menu item-->
-                            <!--begin:Menu item-->
-                            <div data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="bottom-start" class="menu-item menu-lg-down-accordion menu-sub-lg-down-indention me-0 me-lg-2">
-                                <!--begin:Menu link-->
-                                <span class="menu-link">
-												<span class="menu-title">Help</span>
-												<span class="menu-arrow d-lg-none"></span>
-											</span>
-                                <!--end:Menu link-->
-                            </div>
-                            <!--end:Menu item-->
+
                         </div>
                         <!--end::Menu-->
                     </div>
@@ -152,7 +161,7 @@ const signOut = () => {
                             <!--end::Menu separator-->
                             <!--begin::Menu item-->
                             <div class="menu-item px-5">
-                                <a href="account/overview.html" class="menu-link px-5">My Profile</a>
+                                <Link :href="profileEdit.url()" class="menu-link px-5">My Profile</Link>
                             </div>
                             <!--end::Menu item-->
                             <!--begin::Menu item-->
@@ -160,8 +169,8 @@ const signOut = () => {
                                 <a href="apps/projects/list.html" class="menu-link px-5">
                                     <span class="menu-text">My Projects</span>
                                     <span class="menu-badge">
-													<span class="badge badge-light-danger badge-circle fw-bold fs-7">3</span>
-												</span>
+                                        <span class="badge badge-light-danger badge-circle fw-bold fs-7">3</span>
+                                    </span>
                                 </a>
                             </div>
                             <!--end::Menu item-->
@@ -192,8 +201,9 @@ const signOut = () => {
                                     <div class="menu-item px-3">
                                         <a href="account/statements.html" class="menu-link d-flex flex-stack px-5">Statements
                                             <span class="ms-2 lh-0" data-bs-toggle="tooltip" title="View your statements">
-														<i class="ki-outline ki-information-5 fs-5"></i>
-													</span></a>
+                                                <i class="ki-outline ki-information-5 fs-5"></i>
+                                            </span>
+                                        </a>
                                     </div>
                                     <!--end::Menu item-->
                                     <!--begin::Menu separator-->
@@ -221,104 +231,64 @@ const signOut = () => {
                             <!--begin::Menu separator-->
                             <div class="separator my-2"></div>
                             <!--end::Menu separator-->
-                            <!--begin::Menu item-->
+                            <!--begin::Menu item — Mode-->
                             <div class="menu-item px-5" data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="left-start" data-kt-menu-offset="-15px, 0">
                                 <a href="#" class="menu-link px-5">
-												<span class="menu-title position-relative">Mode
-												<span class="ms-5 position-absolute translate-middle-y top-50 end-0">
-													<i class="ki-outline ki-night-day theme-light-show fs-2"></i>
-													<i class="ki-outline ki-moon theme-dark-show fs-2"></i>
-												</span></span>
+                                    <span class="menu-title position-relative">Mode
+                                        <span class="ms-5 position-absolute translate-middle-y top-50 end-0">
+                                            <i class="ki-outline ki-night-day fs-2" :class="themeMode !== 'dark' ? '' : 'd-none'"></i>
+                                            <i class="ki-outline ki-moon fs-2" :class="themeMode === 'dark' ? '' : 'd-none'"></i>
+                                        </span>
+                                    </span>
                                 </a>
-                                <!--begin::Menu-->
-                                <div class="menu menu-sub menu-sub-dropdown menu-column menu-rounded menu-title-gray-700 menu-icon-gray-500 menu-active-bg menu-state-color fw-semibold py-4 fs-base w-150px" data-kt-menu="true" data-kt-element="theme-mode-menu">
-                                    <!--begin::Menu item-->
+                                <!--begin::Mode submenu-->
+                                <div class="menu menu-sub menu-sub-dropdown menu-column menu-rounded menu-title-gray-700 menu-icon-gray-500 menu-active-bg menu-state-color fw-semibold py-4 fs-base w-150px" data-kt-menu="true">
                                     <div class="menu-item px-3 my-0">
-                                        <a href="#" class="menu-link px-3 py-2" data-kt-element="mode" data-kt-value="light">
-														<span class="menu-icon" data-kt-element="icon">
-															<i class="ki-outline ki-night-day fs-2"></i>
-														</span>
+                                        <a href="#" class="menu-link px-3 py-2" :class="{ active: themeMode === 'light' }" @click.prevent="applyTheme('light')">
+                                            <span class="menu-icon"><i class="ki-outline ki-night-day fs-2"></i></span>
                                             <span class="menu-title">Light</span>
                                         </a>
                                     </div>
-                                    <!--end::Menu item-->
-                                    <!--begin::Menu item-->
                                     <div class="menu-item px-3 my-0">
-                                        <a href="#" class="menu-link px-3 py-2" data-kt-element="mode" data-kt-value="dark">
-														<span class="menu-icon" data-kt-element="icon">
-															<i class="ki-outline ki-moon fs-2"></i>
-														</span>
+                                        <a href="#" class="menu-link px-3 py-2" :class="{ active: themeMode === 'dark' }" @click.prevent="applyTheme('dark')">
+                                            <span class="menu-icon"><i class="ki-outline ki-moon fs-2"></i></span>
                                             <span class="menu-title">Dark</span>
                                         </a>
                                     </div>
-                                    <!--end::Menu item-->
-                                    <!--begin::Menu item-->
                                     <div class="menu-item px-3 my-0">
-                                        <a href="#" class="menu-link px-3 py-2" data-kt-element="mode" data-kt-value="system">
-														<span class="menu-icon" data-kt-element="icon">
-															<i class="ki-outline ki-screen fs-2"></i>
-														</span>
+                                        <a href="#" class="menu-link px-3 py-2" :class="{ active: themeMode === 'system' }" @click.prevent="applyTheme('system')">
+                                            <span class="menu-icon"><i class="ki-outline ki-screen fs-2"></i></span>
                                             <span class="menu-title">System</span>
                                         </a>
                                     </div>
-                                    <!--end::Menu item-->
                                 </div>
-                                <!--end::Menu-->
+                                <!--end::Mode submenu-->
                             </div>
-                            <!--end::Menu item-->
-                            <!--begin::Menu item-->
+                            <!--end::Menu item — Mode-->
+                            <!--begin::Menu item — Language-->
                             <div class="menu-item px-5" data-kt-menu-trigger="{default: 'click', lg: 'hover'}" data-kt-menu-placement="left-start" data-kt-menu-offset="-15px, 0">
                                 <a href="#" class="menu-link px-5">
-												<span class="menu-title position-relative">Language
-												<span class="fs-8 rounded bg-light px-3 py-2 position-absolute translate-middle-y top-50 end-0">English
-												<img class="w-15px h-15px rounded-1 ms-2" src="assets/media/flags/united-states.svg" alt="" /></span></span>
+                                    <span class="menu-title position-relative">Language
+                                        <span class="fs-8 rounded bg-light px-3 py-2 position-absolute translate-middle-y top-50 end-0">
+                                            {{ currentLangEntry.label }}
+                                            <img class="w-15px h-15px rounded-1 ms-2" :src="currentLangEntry.flag" alt="" />
+                                        </span>
+                                    </span>
                                 </a>
-                                <!--begin::Menu sub-->
+                                <!--begin::Language submenu-->
                                 <div class="menu-sub menu-sub-dropdown w-175px py-4">
-                                    <!--begin::Menu item-->
-                                    <div class="menu-item px-3">
-                                        <a href="account/settings.html" class="menu-link d-flex px-5 active">
-													<span class="symbol symbol-20px me-4">
-														<img class="rounded-1" src="assets/media/flags/united-states.svg" alt="" />
-													</span>English</a>
+                                    <div v-for="lang in languages" :key="lang.code" class="menu-item px-3">
+                                        <a href="#" class="menu-link d-flex px-5" :class="{ active: currentLang === lang.code }" @click.prevent="applyLang(lang.code)">
+                                            <span class="symbol symbol-20px me-4">
+                                                <img class="rounded-1" :src="lang.flag" :alt="lang.label" />
+                                            </span>
+                                            {{ lang.label }}
+                                        </a>
                                     </div>
-                                    <!--end::Menu item-->
-                                    <!--begin::Menu item-->
-                                    <div class="menu-item px-3">
-                                        <a href="account/settings.html" class="menu-link d-flex px-5">
-													<span class="symbol symbol-20px me-4">
-														<img class="rounded-1" src="assets/media/flags/spain.svg" alt="" />
-													</span>Spanish</a>
-                                    </div>
-                                    <!--end::Menu item-->
-                                    <!--begin::Menu item-->
-                                    <div class="menu-item px-3">
-                                        <a href="account/settings.html" class="menu-link d-flex px-5">
-													<span class="symbol symbol-20px me-4">
-														<img class="rounded-1" src="assets/media/flags/germany.svg" alt="" />
-													</span>German</a>
-                                    </div>
-                                    <!--end::Menu item-->
-                                    <!--begin::Menu item-->
-                                    <div class="menu-item px-3">
-                                        <a href="account/settings.html" class="menu-link d-flex px-5">
-													<span class="symbol symbol-20px me-4">
-														<img class="rounded-1" src="assets/media/flags/japan.svg" alt="" />
-													</span>Japanese</a>
-                                    </div>
-                                    <!--end::Menu item-->
-                                    <!--begin::Menu item-->
-                                    <div class="menu-item px-3">
-                                        <a href="account/settings.html" class="menu-link d-flex px-5">
-													<span class="symbol symbol-20px me-4">
-														<img class="rounded-1" src="assets/media/flags/france.svg" alt="" />
-													</span>French</a>
-                                    </div>
-                                    <!--end::Menu item-->
                                 </div>
-                                <!--end::Menu sub-->
+                                <!--end::Language submenu-->
                             </div>
-                            <!--end::Menu item-->
+                            <!--end::Menu item — Language-->
                             <!--begin::Menu item-->
                             <div class="menu-item px-5 my-1">
                                 <a href="account/settings.html" class="menu-link px-5">Account Settings</a>

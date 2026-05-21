@@ -27,23 +27,23 @@
 <x-inertia::app />
 
 
-<script>var defaultThemeMode = 'dark';
-    var themeMode;
+<script>
     if (document.documentElement) {
-        if (document.documentElement.hasAttribute('data-bs-theme-mode')) {
-            themeMode = document.documentElement.getAttribute('data-bs-theme-mode');
-        } else {
-            if (localStorage.getItem('data-bs-theme') !== null) {
-                themeMode = localStorage.getItem('data-bs-theme');
-            } else {
-                themeMode = defaultThemeMode;
-            }
-        }
+        // ── Theme ──────────────────────────────────────────────────────────────
+        var themeMode = document.documentElement.getAttribute('data-bs-theme-mode')
+            || localStorage.getItem('data-bs-theme')
+            || 'light';
         if (themeMode === 'system') {
             themeMode = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         }
-        document.documentElement.setAttribute('data-bs-theme', 'light');
-    }</script>
+        document.documentElement.setAttribute('data-bs-theme', themeMode);
+
+        // ── Language / direction ────────────────────────────────────────────────
+        var lang = localStorage.getItem('app-lang') || 'en';
+        document.documentElement.setAttribute('lang', lang);
+        document.documentElement.setAttribute('dir', lang === 'ar' ? 'rtl' : 'ltr');
+    }
+</script>
 
 
 <!--begin::Javascript-->

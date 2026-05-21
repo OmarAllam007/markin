@@ -32,6 +32,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'break_start_from',
     'break_start_to',
     'break_apply_as_overtime',
+    'allow_multiple_sessions',
+    'late_checkin_grace_minutes',
+    'early_checkout_grace_minutes',
 ])]
 class WorkShift extends Model
 {
@@ -43,6 +46,9 @@ class WorkShift extends Model
         'overtime_enabled' => false,
         'calculate_overtime_early_checkin' => false,
         'break_apply_as_overtime' => false,
+        'allow_multiple_sessions' => false,
+        'late_checkin_grace_minutes' => 0,
+        'early_checkout_grace_minutes' => 0,
     ];
 
     protected function casts(): array
@@ -53,6 +59,7 @@ class WorkShift extends Model
             'overtime_enabled' => 'boolean',
             'calculate_overtime_early_checkin' => 'boolean',
             'break_apply_as_overtime' => 'boolean',
+            'allow_multiple_sessions' => 'boolean',
         ];
     }
 
@@ -64,6 +71,15 @@ class WorkShift extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function isOvernight(): bool
+    {
+        if (! $this->checkin_time || ! $this->checkout_time) {
+            return false;
+        }
+
+        return $this->checkout_time < $this->checkin_time;
     }
 
     public function employees(): HasMany

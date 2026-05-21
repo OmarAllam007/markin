@@ -50,6 +50,7 @@ class HandleInertiaRequests extends Middleware
                         'send_reminders' => $settings->send_reminders,
                         'allow_remote_checkin' => $settings->allow_remote_checkin,
                         'allow_any_location_checkin' => $settings->allow_any_location_checkin,
+                        'timezone' => $settings->timezone ?? 'UTC',
                     ] : null,
                 ] : null,
                 'switchableTenants' => $user ? $user->switchableTenants()->map(fn ($t) => [
@@ -58,6 +59,7 @@ class HandleInertiaRequests extends Middleware
                     'parent_id' => $t->parent_id,
                 ])->values() : [],
             ],
+            'timezones' => \DateTimeZone::listIdentifiers(),
             'flash' => [
                 'success' => $request->session()->get('success'),
                 'error' => $request->session()->get('error'),

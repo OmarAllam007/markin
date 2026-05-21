@@ -7,10 +7,14 @@ use App\Enums\EmployeeStatus;
 use App\Enums\Gender;
 use App\Enums\MaritalStatus;
 use Database\Factories\EmployeeFactory;
+use Illuminate\Auth\Authenticatable;
+use Illuminate\Contracts\Auth\Authenticatable as AuthenticatableContract;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
+use Laravel\Sanctum\HasApiTokens;
 
 #[Fillable([
     'tenant_id',
@@ -41,11 +45,13 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'allow_remote_checkin',
     'allow_any_location_checkin',
     'work_shift_id',
+    'device_fingerprint',
+    'device_name',
 ])]
-class Employee extends Model
+class Employee extends Model implements AuthenticatableContract
 {
     /** @use HasFactory<EmployeeFactory> */
-    use HasFactory;
+    use Authenticatable, HasApiTokens, HasFactory;
 
     protected $attributes = [
         'status' => 'active',
@@ -95,5 +101,10 @@ class Employee extends Model
     public function workShift(): BelongsTo
     {
         return $this->belongsTo(WorkShift::class);
+    }
+
+    public function attendances(): HasMany
+    {
+        return $this->hasMany(Attendance::class);
     }
 }

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { store, index } from '@/routes/work-shifts';
 import { Head, Link, useForm } from '@inertiajs/vue3';
-import { ref } from 'vue';
+import { computed, ref } from 'vue';
 
 type TabKey = 'main' | 'overtime' | 'break';
 
@@ -29,6 +29,9 @@ const form = useForm({
     working_minutes: null as number | null,
     limit_checkin_from: '',
     limit_checkin_to: '',
+    // Grace / allowance
+    late_checkin_grace_minutes: null as number | null,
+    early_checkout_grace_minutes: null as number | null,
     // Overtime
     overtime_enabled: false,
     overtime_hours: null as number | null,
@@ -51,6 +54,14 @@ const toggleWeekend = (day: string) => {
         form.weekends.splice(idx, 1);
     }
 };
+
+const isOvernightShift = computed(
+    () =>
+        form.type === 'fixed' &&
+        !!form.checkin_time &&
+        !!form.checkout_time &&
+        form.checkout_time < form.checkin_time,
+);
 
 const submit = () => {
     form.post(store.url());
@@ -251,6 +262,17 @@ const submit = () => {
                                 </div>
                             </div>
                         </div>
+                        <div
+                            v-if="isOvernightShift"
+                            class="row g-5 mt-0"
+                        >
+                            <div class="col-12">
+                                <div class="d-flex align-items-center gap-2 text-warning fw-semibold fs-7">
+                                    <i class="ki-outline ki-moon fs-5 text-warning"></i>
+                                    Overnight shift — check-out is on the next calendar day
+                                </div>
+                            </div>
+                        </div>
                     </template>
 
                     <!-- Flexible shift fields -->
@@ -356,6 +378,67 @@ const submit = () => {
                     v-show="activeTab === 'overtime'"
                     class="card-body border-top p-9"
                 >
+                    <!-- Grace / allowance minutes -->
+                    <div class="row g-5 mb-7">
+                        <div class="col-12">
+                            <div class="text-gray-600 fw-semibold fs-7 mb-3 text-uppercase">
+                                Grace &amp; Allowance
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label
+                                class="form-label"
+                                for="ws-late-grace"
+                            >Late check-in grace (minutes)</label>
+                            <input
+                                id="ws-late-grace"
+                                v-model.number="form.late_checkin_grace_minutes"
+                                type="number"
+                                min="0"
+                                max="120"
+                                class="form-control"
+                                :class="{ 'is-invalid': form.errors.late_checkin_grace_minutes }"
+                                placeholder="0"
+                                @keypress="(e) => !/[0-9]/.test(e.key) && e.preventDefault()"
+                            />
+                            <div class="form-text text-muted">
+                                Minutes after scheduled check-in that won't count as late.
+                            </div>
+                            <div
+                                v-if="form.errors.late_checkin_grace_minutes"
+                                class="invalid-feedback"
+                            >
+                                {{ form.errors.late_checkin_grace_minutes }}
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <label
+                                class="form-label"
+                                for="ws-early-grace"
+                            >Early check-out grace (minutes)</label>
+                            <input
+                                id="ws-early-grace"
+                                v-model.number="form.early_checkout_grace_minutes"
+                                type="number"
+                                min="0"
+                                max="120"
+                                class="form-control"
+                                :class="{ 'is-invalid': form.errors.early_checkout_grace_minutes }"
+                                placeholder="0"
+                                @keypress="(e) => !/[0-9]/.test(e.key) && e.preventDefault()"
+                            />
+                            <div class="form-text text-muted">
+                                Minutes before scheduled check-out that won't count as early leave.
+                            </div>
+                            <div
+                                v-if="form.errors.early_checkout_grace_minutes"
+                                class="invalid-feedback"
+                            >
+                                {{ form.errors.early_checkout_grace_minutes }}
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Enable overtime toggle -->
                     <div class="row g-5 mb-7">
                         <div class="col-12">
