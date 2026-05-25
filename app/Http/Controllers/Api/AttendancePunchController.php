@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Enums\PunchType;
+use App\Exceptions\EarlyCheckoutWarningException;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StorePunchRequest;
@@ -19,12 +20,23 @@ class AttendancePunchController extends Controller
         /** @var Employee $employee */
         $employee = $request->user();
 
-        $punch = $this->service->punch(
-            employee: $employee,
-            type: PunchType::from($request->type),
-            latitude: $request->latitude,
-            longitude: $request->longitude,
-        );
+        try {
+            $punch = $this->service->punch(
+                employee: $employee,
+                type: PunchType::from($request->type),
+                latitude: $request->latitude,
+                longitude: $request->longitude,
+                ipAddress: $request->ip(),
+                userAgent: $request->userAgent(),
+                deviceName: $request->device_name,
+                confirmed: (bool) $request->input('confirmed', false),
+                reason: $request->reason,
+            );
+        } catch (EarlyCheckoutWarningException $e) {
+            return ApiResponse::warning($e->getMessage(), [
+                'minutes_early' => $e->minutesEarly,
+            ]);
+        }
 
         return ApiResponse::success('Punch recorded.', [
             'punch_id' => $punch->id,

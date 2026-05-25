@@ -25,4 +25,14 @@ class ApiResponse
             'errors' => $errors,
         ], $statusCode);
     }
+
+    public static function warning(string $message, array $data = []): JsonResponse
+    {
+        return response()->json([
+            'status' => true,
+            'message' => $message,
+            'data' => array_merge(['requires_confirmation' => true], $data),
+            'errors' => null,
+        ], 200);
+    }
 }

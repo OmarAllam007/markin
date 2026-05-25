@@ -21,6 +21,9 @@ class StorePunchRequest extends FormRequest
             'type' => ['required', 'string', Rule::enum(PunchType::class)],
             'latitude' => ['nullable', 'numeric', 'between:-90,90'],
             'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'device_name' => ['nullable', 'string', 'max:255'],
+            'confirmed' => ['boolean'],
+            'reason' => ['nullable', 'string', 'max:500'],
         ];
     }
 }

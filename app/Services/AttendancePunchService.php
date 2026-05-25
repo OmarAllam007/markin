@@ -2,49 +2,114 @@
 
 namespace App\Services;
 
+use App\Enums\AttendancePunchLogStatus;
 use App\Enums\AttendanceSource;
 use App\Enums\AttendanceStatus;
+use App\Enums\NotificationType;
 use App\Enums\PunchType;
+use App\Enums\ShiftType;
+use App\Exceptions\EarlyCheckoutWarningException;
 use App\Models\Attendance;
 use App\Models\AttendancePunch;
+use App\Models\AttendancePunchLog;
 use App\Models\Employee;
+use App\Models\EmployeeNotification;
 use App\Models\Location;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Validation\ValidationException;
+use Throwable;
 
 class AttendancePunchService
 {
+    public function __construct(private readonly HolidayService $holidayService) {}
+
     public function punch(
         Employee $employee,
         PunchType $type,
         ?float $latitude = null,
         ?float $longitude = null,
+        ?string $ipAddress = null,
+        ?string $userAgent = null,
+        ?string $deviceName = null,
+        bool $confirmed = false,
+        ?string $reason = null,
     ): AttendancePunch {
-        $this->validateLocation($employee, $latitude, $longitude);
+        $attemptedAt = now();
 
-        $timezone = $this->tenantTimezone($employee);
-        $attendance = $this->findOrCreateAttendance($employee, $latitude, $longitude, $timezone);
+        try {
+            $this->validateLocation($employee, $latitude, $longitude);
 
-        $this->validatePunchSequence($attendance, $type);
+            $timezone = $this->tenantTimezone($employee);
 
-        $punchLocation = ($latitude !== null && $longitude !== null)
-            ? $this->resolveLocation($employee, $latitude, $longitude)
-            : null;
+            if ($type === PunchType::CheckIn) {
+                $this->validateCheckInTiming($employee, $timezone);
+            }
 
-        $punch = AttendancePunch::create([
-            'attendance_id' => $attendance->id,
-            'type' => $type,
-            'punched_at' => now(),
-            'source' => AttendanceSource::Mobile,
-            'location_id' => $punchLocation?->id,
-            'latitude' => $latitude,
-            'longitude' => $longitude,
-            'device_name' => $employee->device_name,
-        ]);
+            $attendance = $this->findOrCreateAttendance($employee, $latitude, $longitude, $timezone);
 
-        $this->recomputeTotals($attendance, $timezone);
+            $this->validatePunchSequence($attendance, $type);
 
-        return $punch;
+            if ($type === PunchType::CheckOut) {
+                $this->enforceEarlyCheckOutPolicy($employee, $attendance, $confirmed, $timezone);
+            }
+
+            $punchLocation = ($latitude !== null && $longitude !== null)
+                ? $this->resolveLocation($employee, $latitude, $longitude)
+                : null;
+
+            $resolvedDeviceName = $deviceName ?? $employee->device_name;
+
+            $punch = AttendancePunch::create([
+                'attendance_id' => $attendance->id,
+                'type' => $type,
+                'punched_at' => $attemptedAt,
+                'source' => AttendanceSource::Mobile,
+                'location_id' => $punchLocation?->id,
+                'latitude' => $latitude,
+                'longitude' => $longitude,
+                'device_name' => $resolvedDeviceName,
+                'note' => $reason,
+            ]);
+
+            $this->recomputeTotals($attendance, $timezone, $employee);
+
+            if ($type === PunchType::CheckOut && $confirmed && $reason) {
+                $this->notifyEarlyCheckOut($employee, $attendance, $reason);
+            }
+
+            $this->writeLog(
+                employee: $employee,
+                source: AttendanceSource::Mobile,
+                type: $type,
+                status: AttendancePunchLogStatus::Success,
+                punchId: $punch->id,
+                latitude: $latitude,
+                longitude: $longitude,
+                ipAddress: $ipAddress,
+                deviceName: $resolvedDeviceName,
+                userAgent: $userAgent,
+                attemptedAt: $attemptedAt,
+            );
+
+            return $punch;
+        } catch (Throwable $e) {
+            $this->writeLog(
+                employee: $employee,
+                source: AttendanceSource::Mobile,
+                type: $type,
+                status: AttendancePunchLogStatus::Failed,
+                failureReason: $e->getMessage(),
+                latitude: $latitude,
+                longitude: $longitude,
+                ipAddress: $ipAddress,
+                deviceName: $deviceName ?? $employee->device_name,
+                userAgent: $userAgent,
+                attemptedAt: $attemptedAt,
+            );
+
+            throw $e;
+        }
     }
 
     public function punchFromBiometric(
@@ -54,39 +119,66 @@ class AttendancePunchService
         AttendanceSource $source,
         ?string $deviceName = null,
     ): AttendancePunch {
-        $timezone = $this->tenantTimezone($employee);
-        $attendanceDate = Carbon::instance($punchedAt)->setTimezone($timezone)->toDateString();
+        try {
+            $timezone = $this->tenantTimezone($employee);
+            $attendanceDate = Carbon::instance($punchedAt)->setTimezone($timezone)->toDateString();
 
-        $attendance = Attendance::where('employee_id', $employee->id)
-            ->whereDate('attendance_date', $attendanceDate)
-            ->first();
+            $attendance = Attendance::where('employee_id', $employee->id)
+                ->whereDate('attendance_date', $attendanceDate)
+                ->first();
 
-        if (! $attendance) {
-            $shift = $employee->workShift;
+            if (! $attendance) {
+                $shift = $employee->workShift;
+                $isHoliday = $this->holidayService->isHoliday((int) $employee->tenant_id, Carbon::parse($attendanceDate));
 
-            $attendance = Attendance::create([
-                'employee_id' => $employee->id,
-                'attendance_date' => $attendanceDate,
-                'shift_id' => $shift?->id,
-                'scheduled_check_in' => $shift?->checkin_time,
-                'scheduled_check_out' => $shift?->checkout_time,
-                'attendance_source' => $source,
-                'status' => AttendanceStatus::Present,
-                'created_by' => $employee->created_by,
+                $attendance = Attendance::create([
+                    'employee_id' => $employee->id,
+                    'tenant_id' => $employee->tenant_id,
+                    'attendance_date' => $attendanceDate,
+                    'shift_id' => $shift?->id,
+                    'scheduled_check_in' => $shift?->checkin_time,
+                    'scheduled_check_out' => $shift?->checkout_time,
+                    'attendance_source' => $source,
+                    'status' => $isHoliday ? AttendanceStatus::Holiday : AttendanceStatus::Present,
+                    'is_holiday' => $isHoliday,
+                    'created_by' => $employee->created_by,
+                ]);
+            }
+
+            $punch = AttendancePunch::create([
+                'attendance_id' => $attendance->id,
+                'type' => $type,
+                'punched_at' => $punchedAt,
+                'source' => $source,
+                'device_name' => $deviceName,
             ]);
+
+            $this->recomputeTotals($attendance, $timezone);
+
+            $this->writeLog(
+                employee: $employee,
+                source: $source,
+                type: $type,
+                status: AttendancePunchLogStatus::Success,
+                punchId: $punch->id,
+                deviceName: $deviceName,
+                attemptedAt: $punchedAt,
+            );
+
+            return $punch;
+        } catch (Throwable $e) {
+            $this->writeLog(
+                employee: $employee,
+                source: $source,
+                type: $type,
+                status: AttendancePunchLogStatus::Failed,
+                failureReason: $e->getMessage(),
+                deviceName: $deviceName,
+                attemptedAt: $punchedAt,
+            );
+
+            throw $e;
         }
-
-        $punch = AttendancePunch::create([
-            'attendance_id' => $attendance->id,
-            'type' => $type,
-            'punched_at' => $punchedAt,
-            'source' => $source,
-            'device_name' => $deviceName,
-        ]);
-
-        $this->recomputeTotals($attendance, $timezone);
-
-        return $punch;
     }
 
     private function tenantTimezone(Employee $employee): string
@@ -224,14 +316,18 @@ class AttendancePunchService
             ? $this->resolveLocation($employee, $latitude, $longitude)
             : null;
 
+        $isHoliday = $this->holidayService->isHoliday((int) $employee->tenant_id, Carbon::parse($attendanceDate));
+
         return Attendance::create([
             'employee_id' => $employee->id,
+            'tenant_id' => $employee->tenant_id,
             'attendance_date' => $attendanceDate,
             'shift_id' => $shift?->id,
             'scheduled_check_in' => $shift?->checkin_time,
             'scheduled_check_out' => $shift?->checkout_time,
             'attendance_source' => AttendanceSource::Mobile,
-            'status' => AttendanceStatus::Present,
+            'status' => $isHoliday ? AttendanceStatus::Holiday : AttendanceStatus::Present,
+            'is_holiday' => $isHoliday,
             'created_by' => $employee->created_by,
             'location_id' => $location?->id,
             'latitude' => $latitude,
@@ -298,14 +394,28 @@ class AttendancePunchService
 
             if ($hasCompletedSession && $shift && ! $shift->allow_multiple_sessions) {
                 throw ValidationException::withMessages([
-                    'type' => ['Your shift does not allow multiple sessions per day.'],
+                    'type' => ['Your attendance for today is already complete.'],
                 ]);
             }
         }
 
         if ($type === PunchType::CheckOut) {
-            // Cannot check out without checking in first
-            if (! $lastType || $lastType === PunchType::CheckOut) {
+            if (! $lastType) {
+                throw ValidationException::withMessages([
+                    'type' => ['You must check in before checking out.'],
+                ]);
+            }
+
+            if ($lastType === PunchType::CheckOut) {
+                $shift = $attendance->shift;
+                $allowsMultiple = $shift?->allow_multiple_sessions ?? false;
+
+                if (! $allowsMultiple) {
+                    throw ValidationException::withMessages([
+                        'type' => ['Your attendance for today is already complete.'],
+                    ]);
+                }
+
                 throw ValidationException::withMessages([
                     'type' => ['You must check in before checking out.'],
                 ]);
@@ -313,7 +423,132 @@ class AttendancePunchService
         }
     }
 
-    private function recomputeTotals(Attendance $attendance, string $timezone): void
+    private function validateCheckInTiming(Employee $employee, string $timezone): void
+    {
+        $shift = $employee->workShift;
+
+        if (! $shift || $shift->isOvernight()) {
+            // Overnight shifts cross midnight — early check-in logic doesn't cleanly apply.
+            return;
+        }
+
+        $localNow = now($timezone);
+        $earliestTime = $shift->limit_checkin_from;
+
+        if (! $earliestTime && $shift->type === ShiftType::Fixed) {
+            $earliestTime = $shift->checkin_time;
+        }
+
+        if (! $earliestTime) {
+            return;
+        }
+
+        $earliest = Carbon::today($timezone)->setTimeFromTimeString($earliestTime);
+
+        if ($localNow->lt($earliest)) {
+            throw ValidationException::withMessages([
+                'type' => [
+                    'Check-in is not allowed before '.$earliest->format('h:i A').'. Your shift starts at '.$earliest->format('h:i A').'.',
+                ],
+            ]);
+        }
+    }
+
+    private function enforceEarlyCheckOutPolicy(
+        Employee $employee,
+        Attendance $attendance,
+        bool $confirmed,
+        string $timezone,
+    ): void {
+        $shift = $employee->workShift;
+
+        if (! $shift) {
+            return;
+        }
+
+        // Feature is opt-in: null means disabled. 0 means strict (any early checkout triggers warning).
+        if ($shift->early_checkout_grace_minutes === null) {
+            return;
+        }
+
+        $graceMinutes = (int) $shift->early_checkout_grace_minutes;
+
+        $scheduledCheckOut = $attendance->scheduled_check_out ?? $shift->checkout_time;
+
+        if (! $scheduledCheckOut) {
+            return;
+        }
+
+        $localNow = now($timezone);
+
+        // Build the expected checkout datetime from the attendance date so overnight
+        // shifts (where checkout falls on the next calendar day) are handled correctly.
+        $checkOutCarbon = Carbon::parse($attendance->attendance_date, $timezone)
+            ->setTimeFromTimeString($scheduledCheckOut);
+
+        if ($shift->isOvernight()) {
+            $checkOutCarbon->addDay();
+        }
+
+        $earliestAllowed = $checkOutCarbon->clone()->subMinutes($graceMinutes);
+
+        if ($localNow->lt($earliestAllowed)) {
+            $minutesEarly = (int) $localNow->diffInMinutes($checkOutCarbon, false);
+
+            if (! $confirmed) {
+                throw new EarlyCheckoutWarningException(
+                    'You are leaving '.$this->formatDuration($minutesEarly).' early. Please confirm with a reason.',
+                    $minutesEarly,
+                );
+            }
+        }
+    }
+
+    private function writeLog(
+        Employee $employee,
+        AttendanceSource $source,
+        PunchType $type,
+        AttendancePunchLogStatus $status,
+        ?int $punchId = null,
+        ?string $failureReason = null,
+        ?float $latitude = null,
+        ?float $longitude = null,
+        ?string $ipAddress = null,
+        ?string $deviceName = null,
+        ?string $userAgent = null,
+        ?CarbonInterface $attemptedAt = null,
+    ): void {
+        AttendancePunchLog::create([
+            'tenant_id' => $employee->tenant_id,
+            'employee_id' => $employee->id,
+            'source' => $source,
+            'punch_type' => $type,
+            'status' => $status,
+            'failure_reason' => $failureReason,
+            'attendance_punch_id' => $punchId,
+            'latitude' => $latitude,
+            'longitude' => $longitude,
+            'ip_address' => $ipAddress,
+            'device_name' => $deviceName,
+            'user_agent' => $userAgent,
+            'attempted_at' => $attemptedAt ?? now(),
+        ]);
+    }
+
+    private function formatDuration(int $minutes): string
+    {
+        if ($minutes < 60) {
+            return "{$minutes} minutes";
+        }
+
+        $hours = intdiv($minutes, 60);
+        $remaining = $minutes % 60;
+        $hourLabel = $hours === 1 ? '1 hour' : "{$hours} hours";
+
+        return $remaining === 0 ? $hourLabel : "{$hourLabel} and {$remaining} minutes";
+    }
+
+    private function recomputeTotals(Attendance $attendance, string $timezone, ?Employee $employee = null): void
     {
         $punches = $attendance->punches()->orderBy('id')->get();
 
@@ -321,6 +556,7 @@ class AttendancePunchService
         $firstCheckIn = null;
         $lastCheckOut = null;
         $pendingCheckIn = null;
+        $wasAlreadyLate = $attendance->total_late_minutes > 0;
 
         foreach ($punches as $punch) {
             if ($punch->type === PunchType::CheckIn) {
@@ -334,6 +570,7 @@ class AttendancePunchService
         }
 
         $updates = ['worked_minutes' => $workedMinutes];
+        $lateMinutes = 0;
 
         if ($firstCheckIn) {
             $firstCheckInLocal = $firstCheckIn->clone()->setTimezone($timezone);
@@ -355,5 +592,57 @@ class AttendancePunchService
         }
 
         $attendance->update($updates);
+
+        if ($employee && $lateMinutes > 0 && ! $wasAlreadyLate) {
+            $this->notifyLateCheckIn($employee, $attendance, $lateMinutes);
+        }
+    }
+
+    private function notifyLateCheckIn(Employee $employee, Attendance $attendance, int $lateMinutes): void
+    {
+        EmployeeNotification::create([
+            'tenant_id' => $employee->tenant_id,
+            'employee_id' => $employee->id,
+            'type' => NotificationType::LateCheckIn,
+            'title' => 'Late Check-in',
+            'body' => 'You checked in '.$this->formatDuration($lateMinutes).' late on '.$attendance->attendance_date->format('M d, Y').'.',
+            'data' => [
+                'attendance_id' => $attendance->id,
+                'minutes_late' => $lateMinutes,
+                'date' => $attendance->attendance_date->toDateString(),
+            ],
+        ]);
+    }
+
+    private function notifyEarlyCheckOut(Employee $employee, Attendance $attendance, string $reason): void
+    {
+        $shift = $employee->workShift;
+        $scheduledCheckOut = $attendance->scheduled_check_out ?? $shift?->checkout_time;
+        $timezone = $this->tenantTimezone($employee);
+        $localNow = now($timezone);
+
+        $minutesEarly = 0;
+        if ($scheduledCheckOut) {
+            $checkOutCarbon = Carbon::parse($attendance->attendance_date, $timezone)
+                ->setTimeFromTimeString($scheduledCheckOut);
+            if ($shift?->isOvernight()) {
+                $checkOutCarbon->addDay();
+            }
+            $minutesEarly = max(0, (int) $localNow->diffInMinutes($checkOutCarbon, false));
+        }
+
+        EmployeeNotification::create([
+            'tenant_id' => $employee->tenant_id,
+            'employee_id' => $employee->id,
+            'type' => NotificationType::EarlyCheckOut,
+            'title' => 'Early Check-out',
+            'body' => 'You left '.$this->formatDuration($minutesEarly).' early on '.$attendance->attendance_date->format('M d, Y').'. Reason: '.$reason,
+            'data' => [
+                'attendance_id' => $attendance->id,
+                'minutes_early' => $minutesEarly,
+                'reason' => $reason,
+                'date' => $attendance->attendance_date->toDateString(),
+            ],
+        ]);
     }
 }

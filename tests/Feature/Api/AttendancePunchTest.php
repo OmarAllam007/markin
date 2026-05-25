@@ -122,6 +122,21 @@ it('rejects check out without a prior check in', function () {
         ->assertJsonPath('errors.type.0', 'You must check in before checking out.');
 });
 
+it('returns already complete message when checking out after a finished single-session', function () {
+    $shift = WorkShift::factory()->create(['allow_multiple_sessions' => false]);
+    $employee = authenticatedEmployee(['work_shift_id' => $shift->id]);
+
+    $this->actingAs($employee, 'sanctum')
+        ->postJson(route('api.employee.attendance.punch'), punchPayload('check_in'));
+    $this->actingAs($employee, 'sanctum')
+        ->postJson(route('api.employee.attendance.punch'), punchPayload('check_out'));
+
+    $this->actingAs($employee, 'sanctum')
+        ->postJson(route('api.employee.attendance.punch'), punchPayload('check_out'))
+        ->assertUnprocessable()
+        ->assertJsonPath('errors.type.0', 'Your attendance for today is already complete.');
+});
+
 // ── single-session policy ─────────────────────────────────────────────────────
 
 it('rejects a second session on a single-session shift', function () {
@@ -138,7 +153,7 @@ it('rejects a second session on a single-session shift', function () {
     $this->actingAs($employee, 'sanctum')
         ->postJson(route('api.employee.attendance.punch'), punchPayload('check_in'))
         ->assertUnprocessable()
-        ->assertJsonPath('errors.type.0', 'Your shift does not allow multiple sessions per day.');
+        ->assertJsonPath('errors.type.0', 'Your attendance for today is already complete.');
 });
 
 it('allows a second session on a multi-session shift', function () {

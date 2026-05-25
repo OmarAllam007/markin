@@ -17,6 +17,7 @@ use App\Models\WorkShift;
 use App\Services\Attendance\AttendanceCalculatorService;
 use App\Services\Attendance\AttendanceScheduleResolver;
 use App\Services\Attendance\AttendanceValidationService;
+use App\Services\HolidayService;
 use Carbon\CarbonImmutable;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -31,6 +32,7 @@ class AttendanceController extends Controller
         private readonly AttendanceCalculatorService $calculator,
         private readonly AttendanceScheduleResolver $scheduleResolver,
         private readonly AttendanceValidationService $validation,
+        private readonly HolidayService $holidayService,
     ) {}
 
     public function index(IndexAttendanceRequest $request): Response
@@ -179,7 +181,9 @@ class AttendanceController extends Controller
 
         $attendanceDate = CarbonImmutable::parse($data['attendance_date'])->startOfDay();
         $isWeekend = $this->scheduleResolver->isConfiguredWeekend($attendanceDate, $shift);
-        $isHoliday = (bool) ($data['is_holiday'] ?? false);
+        $isHoliday = isset($data['is_holiday'])
+            ? (bool) $data['is_holiday']
+            : $this->holidayService->isHoliday($tenantId, $attendanceDate);
 
         $checkIn = $this->wallClock($data['check_in_time'] ?? null);
         $checkOut = $this->wallClock($data['check_out_time'] ?? null);
@@ -316,7 +320,7 @@ class AttendanceController extends Controller
         $isWeekend = $this->scheduleResolver->isConfiguredWeekend($attendanceDate, $shift);
         $isHoliday = array_key_exists('is_holiday', $data)
             ? (bool) $data['is_holiday']
-            : $attendance->is_holiday;
+            : $this->holidayService->isHoliday((int) $attendance->tenant_id, $attendanceDate);
 
         $checkIn = array_key_exists('check_in_time', $data)
             ? $this->wallClock($data['check_in_time'])

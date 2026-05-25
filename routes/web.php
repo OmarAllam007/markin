@@ -7,6 +7,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\EmployeeController;
+use App\Http\Controllers\HolidayController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
@@ -44,6 +45,7 @@ Route::middleware('auth')->group(function () {
     Route::resource('employees', EmployeeController::class)->except(['show']);
     Route::resource('attendances', AttendanceController::class);
     Route::resource('announcements', AnnouncementController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
+    Route::resource('holidays', HolidayController::class)->except(['show']);
     Route::resource('zk-machines', ZkMachineController::class)->except(['show']);
     Route::post('tenant/switch', [TenantController::class, 'switch'])->name('tenant.switch');
     Route::post('tenants', [TenantController::class, 'store'])->name('tenants.store');

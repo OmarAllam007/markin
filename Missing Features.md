@@ -15,13 +15,13 @@ Holiday attendance status exists but no holiday master data. Missing:
 Define public holidays per year
 Country/region-specific holidays (multi-tenant already has timezone)
 Auto-apply holiday status on attendance calculation
-3. Payroll Export / Integration
+<!-- 3. Payroll Export / Integration
 payroll_exported_at field is on the Attendance model but no payroll module. Missing:
 
 Payroll period configuration
 Deduction/bonus rules based on attendance (late deductions, overtime pay)
 Export to Excel/CSV for payroll systems
-Mark records as exported to prevent double-processing
+Mark records as exported to prevent double-processing -->
 4. Business Trip Management
 BusinessTrip attendance status exists but no trip management. Missing:
 

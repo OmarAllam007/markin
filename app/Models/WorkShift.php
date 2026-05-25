@@ -48,7 +48,7 @@ class WorkShift extends Model
         'break_apply_as_overtime' => false,
         'allow_multiple_sessions' => false,
         'late_checkin_grace_minutes' => 0,
-        'early_checkout_grace_minutes' => 0,
+        'early_checkout_grace_minutes' => null,
     ];
 
     protected function casts(): array

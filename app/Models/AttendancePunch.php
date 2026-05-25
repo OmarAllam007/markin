@@ -19,6 +19,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'latitude',
     'longitude',
     'device_name',
+    'note',
 ])]
 class AttendancePunch extends Model
 {

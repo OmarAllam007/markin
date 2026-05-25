@@ -7,8 +7,16 @@ import { index as announcementsIndex } from '@/routes/announcements';
 import { index as employeesIndex } from '@/routes/employees';
 import { index as workShiftsIndex } from '@/routes/work-shifts';
 import { index as attendancesIndex } from '@/routes/attendances';
+import { index as holidaysIndex } from '@/routes/holidays/index';
 import { index as reportsIndexRoute } from '@/routes/reports/index';
 import { index as zkMachinesIndex } from '@/routes/zk-machines/index';
+import { index as ticketsIndex } from '@/routes/ticketing/tickets/index';
+import { index as ticketCategoriesIndex } from '@/routes/ticketing/admin/categories/index';
+import { index as ticketSubcategoriesIndex } from '@/routes/ticketing/admin/subcategories/index';
+import { index as ticketPrioritiesIndex } from '@/routes/ticketing/admin/priorities/index';
+import { index as ticketSlasIndex } from '@/routes/ticketing/admin/slas/index';
+import { index as ticketGroupsIndex } from '@/routes/ticketing/admin/groups/index';
+import { index as ticketFormFieldsIndex } from '@/routes/ticketing/admin/form-fields/index';
 import { Link, router, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 import SettingsModal from '@/pages/_shared/SettingsModal.vue';
@@ -273,6 +281,21 @@ const switchTenant = (tenantId: number) => {
                         <!--begin::Col-->
                         <div class="col-4">
                             <Link
+                                :href="holidaysIndex.url()"
+                                class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                                :class="{ active: isActive('/holidays') }"
+                                data-kt-button="true"
+                            >
+                                <span class="mb-2">
+                                    <i class="ki-outline ki-calendar-2 fs-1"></i>
+                                </span>
+                                <span class="fs-7 fw-bold">Holidays</span>
+                            </Link>
+                        </div>
+                        <!--end::Col-->
+                        <!--begin::Col-->
+                        <div class="col-4">
+                            <Link
                                 :href="reportsIndexRoute.url()"
                                 class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
                                 :class="{ active: isActive('/reports') }"
@@ -347,6 +370,107 @@ const switchTenant = (tenantId: number) => {
                         </Link>
                     </div>
                 </div>
+
+                <!--begin::Ticketing section-->
+                <h3 class="fw-bold mt-8 mb-8 text-gray-800">Ticketing</h3>
+                <div
+                    class="row g-5"
+                    data-kt-buttons="true"
+                    data-kt-buttons-target="[data-kt-button]"
+                >
+                    <!-- <div class="col-4">
+                        <Link
+                            :href="ticketsIndex.url()"
+                            class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                            :class="{ active: isActive('/ticketing/tickets') }"
+                            data-kt-button="true"
+                        >
+                            <span class="mb-2">
+                                <i class="ki-outline ki-ticket fs-1"></i>
+                            </span>
+                            <span class="fs-7 fw-bold">Tickets</span>
+                        </Link>
+                    </div> -->
+                    <div class="col-4">
+                        <Link
+                            :href="ticketCategoriesIndex.url()"
+                            class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                            :class="{ active: isActive('/ticketing/admin/categories') }"
+                            data-kt-button="true"
+                        >
+                            <span class="mb-2">
+                                <i class="ki-outline ki-category fs-1"></i>
+                            </span>
+                            <span class="fs-7 fw-bold">Categories</span>
+                        </Link>
+                    </div>
+                    <div class="col-4">
+                        <Link
+                            :href="ticketSubcategoriesIndex.url()"
+                            class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                            :class="{ active: isActive('/ticketing/admin/subcategories') }"
+                            data-kt-button="true"
+                        >
+                            <span class="mb-2">
+                                <i class="ki-outline ki-row-horizontal fs-1"></i>
+                            </span>
+                            <span class="fs-7 fw-bold">Subcategories</span>
+                        </Link>
+                    </div>
+                    <div class="col-4">
+                        <Link
+                            :href="ticketPrioritiesIndex.url()"
+                            class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                            :class="{ active: isActive('/ticketing/admin/priorities') }"
+                            data-kt-button="true"
+                        >
+                            <span class="mb-2">
+                                <i class="ki-outline ki-flag fs-1"></i>
+                            </span>
+                            <span class="fs-7 fw-bold">Priorities</span>
+                        </Link>
+                    </div>
+                    <div class="col-4">
+                        <Link
+                            :href="ticketSlasIndex.url()"
+                            class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                            :class="{ active: isActive('/ticketing/admin/slas') }"
+                            data-kt-button="true"
+                        >
+                            <span class="mb-2">
+                                <i class="ki-outline ki-timer fs-1"></i>
+                            </span>
+                            <span class="fs-7 fw-bold">SLA Policies</span>
+                        </Link>
+                    </div>
+                    <div class="col-4">
+                        <Link
+                            :href="ticketGroupsIndex.url()"
+                            class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                            :class="{ active: isActive('/ticketing/admin/groups') }"
+                            data-kt-button="true"
+                        >
+                            <span class="mb-2">
+                                <i class="ki-outline ki-people fs-1"></i>
+                            </span>
+                            <span class="fs-7 fw-bold">Groups</span>
+                        </Link>
+                    </div>
+                    <div class="col-4">
+                        <Link
+                            :href="ticketFormFieldsIndex.url()"
+                            class="btn btn-icon btn-outline btn-bg-light btn-active-light-primary btn-flex flex-column flex-center h-90px w-100 border-gray-200"
+                            :class="{ active: isActive('/ticketing/admin/form-fields') }"
+                            data-kt-button="true"
+                        >
+                            <span class="mb-2">
+                                <i class="ki-outline ki-form fs-1"></i>
+                            </span>
+                            <span class="fs-7 fw-bold">Form Fields</span>
+                        </Link>
+                    </div>
+                </div>
+                <!--end::Ticketing section-->
             </div>
             <!--end::Nav wrapper-->
         </div>
