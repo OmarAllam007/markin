@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\AppModule;
 use Database\Factories\TenantFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -48,6 +49,19 @@ class Tenant extends Model
     public function admins(): BelongsToMany
     {
         return $this->users()->wherePivot('is_admin', true);
+    }
+
+    public function modules(): HasMany
+    {
+        return $this->hasMany(TenantModule::class);
+    }
+
+    public function hasModule(AppModule $module): bool
+    {
+        return $this->modules()
+            ->where('module', $module->value)
+            ->where('is_enabled', true)
+            ->exists();
     }
 
     /** @return array<int, int> */

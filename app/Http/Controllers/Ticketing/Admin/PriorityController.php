@@ -48,8 +48,10 @@ class PriorityController extends Controller
             ->with('success', 'Priority created successfully.');
     }
 
-    public function edit(TicketPriority $priority): Response
+    public function edit(Request $request, TicketPriority $priority): Response
     {
+        abort_if($priority->tenant_id !== $request->user()->current_tenant_id, 403);
+
         return Inertia::render('ticketing/admin/priorities/Edit', [
             'priority' => $priority->only(['id', 'name', 'color', 'icon', 'sla_hours', 'is_default', 'sort_order']),
         ]);
@@ -57,6 +59,8 @@ class PriorityController extends Controller
 
     public function update(UpdatePriorityRequest $request, TicketPriority $priority): RedirectResponse
     {
+        abort_if($priority->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $priority->update([
             ...$request->validated(),
             'is_default' => $request->boolean('is_default'),
@@ -66,8 +70,10 @@ class PriorityController extends Controller
             ->with('success', 'Priority updated successfully.');
     }
 
-    public function destroy(TicketPriority $priority): RedirectResponse
+    public function destroy(Request $request, TicketPriority $priority): RedirectResponse
     {
+        abort_if($priority->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $priority->delete();
 
         return redirect()->route('ticketing.admin.priorities.index')

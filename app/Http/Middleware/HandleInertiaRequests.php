@@ -2,6 +2,7 @@
 
 namespace App\Http\Middleware;
 
+use App\Enums\AppModule;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -59,6 +60,16 @@ class HandleInertiaRequests extends Middleware
                     'parent_id' => $t->parent_id,
                 ])->values() : [],
             ],
+            'enabledModules' => $tenant
+                ? $tenant->modules()->where('is_enabled', true)->pluck('module')->map(fn ($m) => $m->value)
+                : [],
+            'tenantModules' => $tenant && $user?->isAdminOf($tenant)
+                ? collect(AppModule::cases())->map(fn (AppModule $m) => [
+                    'module' => $m->value,
+                    'label' => $m->label(),
+                    'is_enabled' => $tenant->hasModule($m),
+                ])->values()
+                : null,
             'timezones' => \DateTimeZone::listIdentifiers(),
             'flash' => [
                 'success' => $request->session()->get('success'),

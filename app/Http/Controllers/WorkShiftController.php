@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Http\Requests\StoreWorkShiftRequest;
 use App\Http\Requests\UpdateWorkShiftRequest;
 use App\Models\Tenant;
@@ -27,6 +29,8 @@ class WorkShiftController extends Controller
                 'filters' => ['search' => null],
             ]);
         }
+
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Shifts, PermissionAction::View);
 
         $workShifts = WorkShift::query()
             ->where('tenant_id', $tenantId)
@@ -55,7 +59,7 @@ class WorkShiftController extends Controller
             return redirect()->back()->with('error', 'No active company selected.');
         }
 
-        $this->authorizesTenantAccess($request, $tenantId);
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Shifts, PermissionAction::Create);
 
         $data = $request->validated();
 
@@ -76,7 +80,7 @@ class WorkShiftController extends Controller
 
     public function edit(WorkShift $workShift): Response
     {
-        $this->authorizesTenantAccess(request(), $workShift->tenant_id);
+        $this->authorizesTenantAccess(request(), $workShift->tenant_id, PermissionModule::Shifts, PermissionAction::Edit);
 
         return Inertia::render('work-shifts/Edit', [
             'workShift' => $workShift->only([
@@ -94,7 +98,7 @@ class WorkShiftController extends Controller
 
     public function update(UpdateWorkShiftRequest $request, WorkShift $workShift): RedirectResponse
     {
-        $this->authorizesTenantAccess($request, $workShift->tenant_id);
+        $this->authorizesTenantAccess($request, $workShift->tenant_id, PermissionModule::Shifts, PermissionAction::Edit);
 
         $data = $request->validated();
 
@@ -111,18 +115,23 @@ class WorkShiftController extends Controller
 
     public function destroy(Request $request, WorkShift $workShift): RedirectResponse
     {
-        $this->authorizesTenantAccess($request, $workShift->tenant_id);
+        $this->authorizesTenantAccess($request, $workShift->tenant_id, PermissionModule::Shifts, PermissionAction::Delete);
 
         $workShift->delete();
 
         return redirect()->route('work-shifts.index')->with('success', 'Work shift deleted successfully.');
     }
 
-    private function authorizesTenantAccess(Request $request, int $tenantId): void
+    private function authorizesTenantAccess(Request $request, int $tenantId, ?PermissionModule $module = null, ?PermissionAction $action = null): void
     {
         $tenant = Tenant::findOrFail($tenantId);
+
         if (! $request->user()->canAccessTenant($tenant)) {
             abort(403, 'You do not have access to this tenant.');
+        }
+
+        if ($module !== null && ! $request->user()->canPerform($tenant, $module, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
         }
     }
 }

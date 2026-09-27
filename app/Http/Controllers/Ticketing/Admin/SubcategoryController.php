@@ -78,6 +78,8 @@ class SubcategoryController extends Controller
     {
         $tenantId = $request->user()->current_tenant_id;
 
+        abort_if($subcategory->tenant_id !== $tenantId, 403);
+
         $categories = TicketCategory::query()
             ->where('tenant_id', $tenantId)
             ->where('is_active', true)
@@ -92,6 +94,8 @@ class SubcategoryController extends Controller
 
     public function update(UpdateSubcategoryRequest $request, TicketSubcategory $subcategory): RedirectResponse
     {
+        abort_if($subcategory->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $subcategory->update([
             ...$request->validated(),
             'is_active' => $request->boolean('is_active', true),
@@ -101,8 +105,10 @@ class SubcategoryController extends Controller
             ->with('success', 'Subcategory updated successfully.');
     }
 
-    public function destroy(TicketSubcategory $subcategory): RedirectResponse
+    public function destroy(Request $request, TicketSubcategory $subcategory): RedirectResponse
     {
+        abort_if($subcategory->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $subcategory->delete();
 
         return redirect()->route('ticketing.admin.subcategories.index')

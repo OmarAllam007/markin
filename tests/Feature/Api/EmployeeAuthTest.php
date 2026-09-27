@@ -1,8 +1,10 @@
 <?php
 
+use App\Mail\EmployeeOtpMail;
 use App\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -41,25 +43,63 @@ it('returns 404 when no employee matches the given mobile', function () {
     ])->assertNotFound();
 });
 
-it('returns otp and verification token and caches both when employee is found', function () {
+it('emails the otp and returns only the verification token when employee is found', function () {
+    Mail::fake();
+
     $employee = Employee::factory()->create([
         'mobile_country_code' => '+966',
         'mobile_number' => '512345678',
+        'email' => 'employee@example.com',
     ]);
 
     $response = $this->postJson(route('api.employee.auth.request-otp'), [
         'country_code' => '+966',
         'mobile_number' => '512345678',
     ])->assertOk()
-        ->assertJsonStructure(['data' => ['otp', 'verification_token']]);
+        ->assertJsonStructure(['data' => ['verification_token']])
+        ->assertJsonMissingPath('data.otp');
 
-    $otp = $response->json('data.otp');
     $token = $response->json('data.verification_token');
+    $otp = Cache::get("otp:employee:{$employee->id}");
 
     expect($otp)->toHaveLength(4)
         ->and(ctype_digit($otp))->toBeTrue()
-        ->and(Cache::get("otp:employee:{$employee->id}"))->toBe($otp)
         ->and(Cache::get("otp:token:{$token}"))->toBe($employee->id);
+
+    Mail::assertQueued(EmployeeOtpMail::class, fn (EmployeeOtpMail $mail) => $mail->hasTo($employee->email) && $mail->code === $otp);
+});
+
+it('renders the employee otp email with its security guidance', function () {
+    $employee = Employee::factory()->create([
+        'english_name' => 'Nora Ahmed',
+        'email' => 'nora@example.com',
+    ]);
+
+    $email = new EmployeeOtpMail($employee, '4821');
+
+    expect($email->render())
+        ->toContain('Hi Nora Ahmed')
+        ->toContain('4821 is your')
+        ->toContain('Keep this code private')
+        ->toContain('Expires in');
+});
+
+it('returns 422 when the employee has no email on file', function () {
+    Mail::fake();
+
+    Employee::factory()->create([
+        'mobile_country_code' => '+966',
+        'mobile_number' => '512345678',
+        'email' => null,
+    ]);
+
+    $this->postJson(route('api.employee.auth.request-otp'), [
+        'country_code' => '+966',
+        'mobile_number' => '512345678',
+    ])->assertUnprocessable()
+        ->assertJsonPath('message', 'No email is registered for this account. Please contact your administrator.');
+
+    Mail::assertNothingSent();
 });
 
 // ── verify-otp ───────────────────────────────────────────────────────────────

@@ -163,8 +163,10 @@ class TicketController extends Controller
             ->with('success', 'Ticket submitted successfully.');
     }
 
-    public function show(Ticket $ticket): Response
+    public function show(Request $request, Ticket $ticket): Response
     {
+        abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $ticket->load([
             'requester:id,name',
             'creator:id,name',
@@ -190,6 +192,8 @@ class TicketController extends Controller
     public function edit(Request $request, Ticket $ticket): Response
     {
         $tenantId = $request->user()->current_tenant_id;
+
+        abort_if($ticket->tenant_id !== $tenantId, 403);
 
         $ticket->load(['category:id,name', 'subcategory:id,name', 'priority:id,name', 'sla:id,name', 'group:id,name']);
 
@@ -226,14 +230,18 @@ class TicketController extends Controller
 
     public function update(UpdateTicketRequest $request, Ticket $ticket): RedirectResponse
     {
+        abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $ticket->update($request->validated());
 
         return redirect()->route('ticketing.tickets.show', $ticket)
             ->with('success', 'Ticket updated successfully.');
     }
 
-    public function destroy(Ticket $ticket): RedirectResponse
+    public function destroy(Request $request, Ticket $ticket): RedirectResponse
     {
+        abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $ticket->delete();
 
         return redirect()->route('ticketing.tickets.index')

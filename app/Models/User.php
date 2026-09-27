@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
+use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -63,7 +66,18 @@ class User extends Authenticatable
             $ancestor = $ancestor->parent;
         }
 
-        return false;
+        // A non-admin member only gets in once they've been granted at least
+        // one explicit permission for this tenant — the web portal is for
+        // admins and permitted staff; everyone else uses the mobile app.
+        return $this->isActiveMemberOf($tenant) && $this->permissions()->where('tenant_id', $tenant->id)->exists();
+    }
+
+    public function isActiveMemberOf(Tenant $tenant): bool
+    {
+        return $this->tenants()
+            ->where('tenants.id', $tenant->id)
+            ->wherePivot('status', UserStatus::Active->value)
+            ->exists();
     }
 
     /** @return Collection<int, Tenant> */
@@ -107,5 +121,52 @@ class User extends Authenticatable
             ->where('module', $module)
             ->where('action', $action)
             ->exists();
+    }
+
+    /**
+     * Whether the user may perform the given action, either as a tenant admin
+     * (who bypasses all granular checks) or via an explicit UserPermission grant.
+     */
+    public function canPerform(Tenant $tenant, PermissionModule|string $module, PermissionAction|string $action): bool
+    {
+        if ($this->isAdminOf($tenant)) {
+            return true;
+        }
+
+        return $this->hasPermission(
+            $module instanceof PermissionModule ? $module->value : $module,
+            $action instanceof PermissionAction ? $action->value : $action,
+            $tenant->id,
+        );
+    }
+
+    /**
+     * The department IDs this user is restricted to within the tenant.
+     * Null means unrestricted (tenant admin); an empty array means no access.
+     *
+     * @return array<int>|null
+     */
+    public function accessibleDepartmentIds(Tenant $tenant): ?array
+    {
+        if ($this->isAdminOf($tenant)) {
+            return null;
+        }
+
+        return $this->departmentAccess()->wherePivot('tenant_id', $tenant->id)->pluck('departments.id')->all();
+    }
+
+    /**
+     * The location IDs this user is restricted to within the tenant.
+     * Null means unrestricted (tenant admin); an empty array means no access.
+     *
+     * @return array<int>|null
+     */
+    public function accessibleLocationIds(Tenant $tenant): ?array
+    {
+        if ($this->isAdminOf($tenant)) {
+            return null;
+        }
+
+        return $this->locationAccess()->wherePivot('tenant_id', $tenant->id)->pluck('locations.id')->all();
     }
 }

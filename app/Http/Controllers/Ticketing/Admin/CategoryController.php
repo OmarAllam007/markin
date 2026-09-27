@@ -57,8 +57,10 @@ class CategoryController extends Controller
             ->with('success', 'Category created successfully.');
     }
 
-    public function edit(TicketCategory $category): Response
+    public function edit(Request $request, TicketCategory $category): Response
     {
+        abort_if($category->tenant_id !== $request->user()->current_tenant_id, 403);
+
         return Inertia::render('ticketing/admin/categories/Edit', [
             'category' => $category->only(['id', 'name', 'name_ar', 'description', 'icon', 'color', 'is_active', 'ticket_type']),
             'types' => collect(TicketType::cases())->map(fn ($t) => ['value' => $t->value, 'label' => $t->label()]),
@@ -67,6 +69,8 @@ class CategoryController extends Controller
 
     public function update(UpdateCategoryRequest $request, TicketCategory $category): RedirectResponse
     {
+        abort_if($category->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $category->update([
             ...$request->validated(),
             'is_active' => $request->boolean('is_active', true),
@@ -76,8 +80,10 @@ class CategoryController extends Controller
             ->with('success', 'Category updated successfully.');
     }
 
-    public function destroy(TicketCategory $category): RedirectResponse
+    public function destroy(Request $request, TicketCategory $category): RedirectResponse
     {
+        abort_if($category->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $category->delete();
 
         return redirect()->route('ticketing.admin.categories.index')

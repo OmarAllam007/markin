@@ -54,8 +54,10 @@ class GroupController extends Controller
             ->with('success', 'Group created successfully.');
     }
 
-    public function edit(TicketGroup $group): Response
+    public function edit(Request $request, TicketGroup $group): Response
     {
+        abort_if($group->tenant_id !== $request->user()->current_tenant_id, 403);
+
         return Inertia::render('ticketing/admin/groups/Edit', [
             'group' => $group->only(['id', 'name', 'description', 'is_active']),
         ]);
@@ -63,6 +65,8 @@ class GroupController extends Controller
 
     public function update(UpdateGroupRequest $request, TicketGroup $group): RedirectResponse
     {
+        abort_if($group->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $group->update([
             ...$request->validated(),
             'is_active' => $request->boolean('is_active', true),
@@ -72,8 +76,10 @@ class GroupController extends Controller
             ->with('success', 'Group updated successfully.');
     }
 
-    public function destroy(TicketGroup $group): RedirectResponse
+    public function destroy(Request $request, TicketGroup $group): RedirectResponse
     {
+        abort_if($group->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $group->delete();
 
         return redirect()->route('ticketing.admin.groups.index')

@@ -126,7 +126,7 @@ function removeAnnouncement(a: AnnouncementRow) {
                                 </td>
                                 <td>
                                     <div class="fw-bold text-gray-800">{{ a.title }}</div>
-                                    <div class="text-gray-500 fs-7 text-truncate" style="max-width: 280px;">{{ a.description }}</div>
+                                    <div class="text-gray-500 fs-7 text-truncate" style="max-width: 280px;" v-html="a.description"></div>
                                 </td>
                                 <td class="text-gray-700">
                                     <div class="fs-8 text-muted mb-1">{{ TARGET_LABEL[a.target_type] ?? a.target_type }}</div>

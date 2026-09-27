@@ -1,9 +1,15 @@
 <script setup lang="ts">
 import { update as settingsUpdate } from '@/routes/tenant/settings';
-import { useForm, usePage } from '@inertiajs/vue3';
+import { router, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
 
-type Tab = 'general' | 'attendance';
+type Tab = 'general' | 'attendance' | 'modules';
+
+type TenantModuleItem = {
+    module: string;
+    label: string;
+    is_enabled: boolean;
+};
 
 type CompanySettings = {
     company_name: string | null;
@@ -36,7 +42,11 @@ type CurrentTenant = {
     settings: CompanySettings | null;
 };
 
-const page = usePage<{ auth: { currentTenant: CurrentTenant | null }; timezones: string[] }>();
+const page = usePage<{
+    auth: { currentTenant: CurrentTenant | null };
+    timezones: string[];
+    tenantModules: TenantModuleItem[] | null;
+}>();
 const s = page.props.auth?.currentTenant?.settings;
 
 const groupedTimezones = computed(() => {
@@ -89,6 +99,10 @@ function onLogoChange(e: Event) {
 function removeLogo() {
     form.logo = null;
     logoPreview.value = null;
+}
+
+function toggleModule(module: string, isEnabled: boolean) {
+    router.post('/tenant/modules', { module, is_enabled: isEnabled }, { preserveScroll: true });
 }
 
 function submit() {
@@ -151,6 +165,20 @@ function submit() {
                         >
                             <i class="ki-outline ki-time fs-5 me-2"></i>
                             Attendance
+                        </button>
+                    </li>
+                    <li
+                        v-if="page.props.tenantModules"
+                        class="nav-item"
+                    >
+                        <button
+                            type="button"
+                            class="nav-link px-5 py-3 fw-semibold fs-7"
+                            :class="activeTab === 'modules' ? 'active' : 'text-gray-600'"
+                            @click="activeTab = 'modules'"
+                        >
+                            <i class="ki-outline ki-element-11 fs-5 me-2"></i>
+                            Modules
                         </button>
                     </li>
                 </ul>
@@ -620,10 +648,51 @@ function submit() {
                         </div>
                     </div>
                 </div>
+                <!-- ── Modules Tab ── -->
+                <div
+                    v-if="activeTab === 'modules' && page.props.tenantModules"
+                    v-show="activeTab === 'modules'"
+                >
+                    <div class="fs-7 text-muted mb-6">
+                        Enable or disable optional modules for this tenant. Changes take effect immediately.
+                    </div>
+                    <div class="d-flex flex-column gap-4">
+                        <div
+                            v-for="item in page.props.tenantModules"
+                            :key="item.module"
+                            class="d-flex align-items-center justify-content-between p-5 rounded border border-gray-200"
+                        >
+                            <div class="d-flex align-items-center gap-4">
+                                <div class="w-40px h-40px rounded bg-light-primary d-flex align-items-center justify-content-center flex-shrink-0">
+                                    <i class="ki-outline ki-element-11 fs-4 text-primary"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-semibold text-gray-800 fs-6">{{ item.label }}</div>
+                                    <div class="fs-8 text-muted">
+                                        {{ item.is_enabled ? 'Active — users can access this module' : 'Inactive — access is blocked for all users' }}
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="form-check form-switch flex-shrink-0 ms-4">
+                                <input
+                                    :id="`module-${item.module}`"
+                                    type="checkbox"
+                                    class="form-check-input"
+                                    role="switch"
+                                    :checked="item.is_enabled"
+                                    @change="toggleModule(item.module, ($event.target as HTMLInputElement).checked)"
+                                />
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </form>
 
             <!-- Footer -->
-            <div class="d-flex align-items-center justify-content-between gap-3 px-8 py-5 border-top">
+            <div
+                v-if="activeTab !== 'modules'"
+                class="d-flex align-items-center justify-content-between gap-3 px-8 py-5 border-top"
+            >
                 <div>
                     <span
                         v-if="form.hasErrors"
@@ -659,6 +728,20 @@ function submit() {
                         Save Settings
                     </button>
                 </div>
+            </div>
+
+            <!-- Modules footer (just close) -->
+            <div
+                v-if="activeTab === 'modules'"
+                class="d-flex align-items-center justify-content-end gap-3 px-8 py-5 border-top"
+            >
+                <button
+                    type="button"
+                    class="btn btn-light"
+                    @click="emit('close')"
+                >
+                    Close
+                </button>
             </div>
         </div>
     </div>

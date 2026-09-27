@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Http\Requests\StoreLocationRequest;
 use App\Http\Requests\UpdateLocationRequest;
 use App\Models\Location;
@@ -27,6 +29,8 @@ class LocationController extends Controller
                 'filters' => ['search' => null],
             ]);
         }
+
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Locations, PermissionAction::View);
 
         $locations = Location::query()
             ->where('tenant_id', $tenantId)
@@ -54,7 +58,7 @@ class LocationController extends Controller
             return redirect()->back()->with('error', 'No active company selected.');
         }
 
-        $this->authorizesTenantAccess($request, $tenantId);
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Locations, PermissionAction::Create);
 
         Location::create([
             'tenant_id' => $tenantId,
@@ -67,7 +71,7 @@ class LocationController extends Controller
 
     public function edit(Location $location): Response
     {
-        $this->authorizesTenantAccess(request(), $location->tenant_id);
+        $this->authorizesTenantAccess(request(), $location->tenant_id, PermissionModule::Locations, PermissionAction::Edit);
 
         return Inertia::render('locations/Edit', [
             'location' => $location->only(['id', 'name', 'coordinates']),
@@ -76,7 +80,7 @@ class LocationController extends Controller
 
     public function update(UpdateLocationRequest $request, Location $location): RedirectResponse
     {
-        $this->authorizesTenantAccess($request, $location->tenant_id);
+        $this->authorizesTenantAccess($request, $location->tenant_id, PermissionModule::Locations, PermissionAction::Edit);
 
         $location->update($request->validated());
 
@@ -85,18 +89,23 @@ class LocationController extends Controller
 
     public function destroy(Request $request, Location $location): RedirectResponse
     {
-        $this->authorizesTenantAccess($request, $location->tenant_id);
+        $this->authorizesTenantAccess($request, $location->tenant_id, PermissionModule::Locations, PermissionAction::Delete);
 
         $location->delete();
 
         return redirect()->route('locations.index')->with('success', 'Location deleted successfully.');
     }
 
-    private function authorizesTenantAccess(Request $request, int $tenantId): void
+    private function authorizesTenantAccess(Request $request, int $tenantId, ?PermissionModule $module = null, ?PermissionAction $action = null): void
     {
         $tenant = Tenant::findOrFail($tenantId);
+
         if (! $request->user()->canAccessTenant($tenant)) {
             abort(403, 'You do not have access to this tenant.');
+        }
+
+        if ($module !== null && ! $request->user()->canPerform($tenant, $module, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
         }
     }
 }

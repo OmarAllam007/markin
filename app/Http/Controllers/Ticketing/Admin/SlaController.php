@@ -48,8 +48,10 @@ class SlaController extends Controller
             ->with('success', 'SLA policy created successfully.');
     }
 
-    public function edit(TicketSla $sla): Response
+    public function edit(Request $request, TicketSla $sla): Response
     {
+        abort_if($sla->tenant_id !== $request->user()->current_tenant_id, 403);
+
         return Inertia::render('ticketing/admin/slas/Edit', [
             'sla' => $sla->only(['id', 'name', 'first_response_hours', 'resolve_hours', 'business_hours_only', 'is_active']),
         ]);
@@ -57,6 +59,8 @@ class SlaController extends Controller
 
     public function update(UpdateSlaRequest $request, TicketSla $sla): RedirectResponse
     {
+        abort_if($sla->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $sla->update([
             ...$request->validated(),
             'business_hours_only' => $request->boolean('business_hours_only'),
@@ -67,8 +71,10 @@ class SlaController extends Controller
             ->with('success', 'SLA policy updated successfully.');
     }
 
-    public function destroy(TicketSla $sla): RedirectResponse
+    public function destroy(Request $request, TicketSla $sla): RedirectResponse
     {
+        abort_if($sla->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $sla->delete();
 
         return redirect()->route('ticketing.admin.slas.index')

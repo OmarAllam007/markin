@@ -12,6 +12,7 @@ use App\Http\Controllers\LocationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TenantController;
+use App\Http\Controllers\TenantModuleController;
 use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkShiftController;
@@ -50,6 +51,7 @@ Route::middleware('auth')->group(function () {
     Route::post('tenant/switch', [TenantController::class, 'switch'])->name('tenant.switch');
     Route::post('tenants', [TenantController::class, 'store'])->name('tenants.store');
     Route::post('tenant/settings', [TenantSettingsController::class, 'update'])->name('tenant.settings.update');
+    Route::post('tenant/modules', [TenantModuleController::class, 'update'])->name('tenant.modules.update');
     Route::prefix('reports')->name('reports.')->group(function () {
         Route::get('/', [ReportController::class, 'index'])->name('index');
         Route::get('overtime', [ReportController::class, 'overtime'])->name('overtime');

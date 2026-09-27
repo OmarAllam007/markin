@@ -15,6 +15,8 @@ class TicketApprovalController extends Controller
 {
     public function store(StoreTicketApprovalRequest $request, Ticket $ticket): RedirectResponse
     {
+        abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
+
         $action = TicketApprovalAction::from($request->validated('action'));
 
         DB::transaction(function () use ($request, $ticket, $action): void {

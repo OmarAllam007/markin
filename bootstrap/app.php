@@ -1,6 +1,8 @@
 <?php
 
 use App\Helpers\ApiResponse;
+use App\Http\Middleware\EnsureApiEmployeeTenantHasModule;
+use App\Http\Middleware\EnsureTenantHasModule;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveTenant;
 use Illuminate\Auth\AuthenticationException;
@@ -19,7 +21,7 @@ return Application::configure(basePath: dirname(__DIR__))
         commands: __DIR__.'/../routes/console.php',
         health: '/up',
         then: function (): void {
-            Route::middleware('web')
+            Route::middleware(['web', 'tenant.module:ticketing'])
                 ->group(base_path('routes/tickets.php'));
         },
     )
@@ -30,6 +32,10 @@ return Application::configure(basePath: dirname(__DIR__))
             HandleInertiaRequests::class,
             AddLinkHeadersForPreloadedAssets::class,
             ResolveTenant::class,
+        ]);
+        $middleware->alias([
+            'tenant.module' => EnsureTenantHasModule::class,
+            'api.employee.module' => EnsureApiEmployeeTenantHasModule::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {

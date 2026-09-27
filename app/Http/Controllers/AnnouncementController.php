@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Http\Requests\StoreAnnouncementRequest;
 use App\Mail\AnnouncementMail;
 use App\Models\Announcement;
@@ -26,6 +28,8 @@ class AnnouncementController extends Controller
         if (! $tenantId) {
             return Inertia::render('announcements/Index', ['announcements' => []]);
         }
+
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Notifications, PermissionAction::View);
 
         $announcements = Announcement::query()
             ->where('tenant_id', $tenantId)
@@ -56,6 +60,8 @@ class AnnouncementController extends Controller
             ]);
         }
 
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Notifications, PermissionAction::Create);
+
         $employees = Employee::query()
             ->where('tenant_id', $tenantId)
             ->with(['department:id,name', 'location:id,name'])
@@ -80,7 +86,7 @@ class AnnouncementController extends Controller
 
     public function show(Request $request, Announcement $announcement): Response
     {
-        $this->authorizesTenantAccess($request, $announcement->tenant_id);
+        $this->authorizesTenantAccess($request, $announcement->tenant_id, PermissionModule::Notifications, PermissionAction::View);
 
         $announcement->load(['creator:id,name', 'targetLocation:id,name', 'targetDepartment:id,name']);
 
@@ -105,7 +111,7 @@ class AnnouncementController extends Controller
 
     public function destroy(Request $request, Announcement $announcement): RedirectResponse
     {
-        $this->authorizesTenantAccess($request, $announcement->tenant_id);
+        $this->authorizesTenantAccess($request, $announcement->tenant_id, PermissionModule::Notifications, PermissionAction::Delete);
 
         if ($announcement->attachment_path) {
             Storage::delete($announcement->attachment_path);
@@ -125,7 +131,7 @@ class AnnouncementController extends Controller
             return redirect()->back()->with('error', 'No active company selected.');
         }
 
-        $this->authorizesTenantAccess($request, $tenantId);
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Notifications, PermissionAction::Create);
 
         $attachmentPath = null;
         if ($request->hasFile('attachment')) {
@@ -189,11 +195,16 @@ class AnnouncementController extends Controller
         return $query->get();
     }
 
-    private function authorizesTenantAccess(Request $request, int $tenantId): void
+    private function authorizesTenantAccess(Request $request, int $tenantId, ?PermissionModule $module = null, ?PermissionAction $action = null): void
     {
         $tenant = Tenant::findOrFail($tenantId);
+
         if (! $request->user()->canAccessTenant($tenant)) {
             abort(403, 'You do not have access to this tenant.');
+        }
+
+        if ($module !== null && ! $request->user()->canPerform($tenant, $module, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
         }
     }
 }

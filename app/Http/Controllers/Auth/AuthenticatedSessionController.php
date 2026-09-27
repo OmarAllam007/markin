@@ -34,9 +34,9 @@ class AuthenticatedSessionController extends Controller
         }
 
         $activeMembership = $user->tenants()
-            ->wherePivot('is_admin', true)
             ->wherePivot('status', UserStatus::Active->value)
-            ->first();
+            ->get()
+            ->first(fn ($tenant) => $user->canAccessTenant($tenant));
 
         if ($activeMembership === null) {
             throw ValidationException::withMessages([

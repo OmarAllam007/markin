@@ -30,7 +30,10 @@ const page = usePage<{
         currentTenant: TenantOption | null;
         switchableTenants: TenantOption[];
     };
+    enabledModules: string[];
 }>();
+
+const hasTicketing = computed(() => page.props.enabledModules?.includes('ticketing') ?? false);
 
 const currentPath = computed(() => new URL(page.url, 'http://x').pathname);
 const isActive = (path: string) => currentPath.value.startsWith(path);
@@ -372,6 +375,7 @@ const switchTenant = (tenantId: number) => {
                 </div>
 
                 <!--begin::Ticketing section-->
+                <template v-if="hasTicketing">
                 <h3 class="fw-bold mt-8 mb-8 text-gray-800">Ticketing</h3>
                 <div
                     class="row g-5"
@@ -470,6 +474,7 @@ const switchTenant = (tenantId: number) => {
                         </Link>
                     </div>
                 </div>
+                </template>
                 <!--end::Ticketing section-->
             </div>
             <!--end::Nav wrapper-->

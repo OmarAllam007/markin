@@ -6,8 +6,10 @@ use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\RequestEmployeeOtpRequest;
 use App\Http\Requests\Api\VerifyEmployeeOtpRequest;
+use App\Mail\EmployeeOtpMail;
 use App\Models\Employee;
 use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Str;
 
 class EmployeeAuthController extends Controller
@@ -22,17 +24,21 @@ class EmployeeAuthController extends Controller
             return ApiResponse::error('Employee not found.', null, 404);
         }
 
+        if (! $employee->email) {
+            return ApiResponse::error('No email is registered for this account. Please contact your administrator.', null, 422);
+        }
+
         $code = str_pad((string) random_int(0, 9999), 4, '0', STR_PAD_LEFT);
         $verificationToken = Str::uuid()->toString();
 
         Cache::put("otp:employee:{$employee->id}", $code, 300);
         Cache::put("otp:token:{$verificationToken}", $employee->id, 300);
 
-        // TODO: Send SMS with $code to {$employee->mobile_country_code}{$employee->mobile_number}
+        // ponytail: OTP sent by email for now, not SMS — swap for an SMS provider before launch
+        Mail::to($employee->email)->send(new EmployeeOtpMail($employee, $code));
 
         return ApiResponse::success('OTP sent successfully.', [
             'verification_token' => $verificationToken,
-            'otp' => $code, // remove once SMS is configured
         ]);
     }
 

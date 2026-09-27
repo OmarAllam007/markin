@@ -5,6 +5,8 @@ namespace App\Http\Controllers;
 use App\Enums\ContractType;
 use App\Enums\Gender;
 use App\Enums\MaritalStatus;
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Enums\ShiftType;
 use App\Http\Requests\StoreEmployeeRequest;
 use App\Http\Requests\UpdateEmployeeRequest;
@@ -46,6 +48,8 @@ class EmployeeController extends Controller
                 'workShifts' => [],
             ]);
         }
+
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Employees, PermissionAction::View);
 
         $employees = Employee::query()
             ->where('tenant_id', $tenantId)
@@ -95,7 +99,7 @@ class EmployeeController extends Controller
             return redirect()->back()->with('error', 'No active company selected.');
         }
 
-        $this->authorizesTenantAccess($request, $tenantId);
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Employees, PermissionAction::Create);
 
         Employee::create([
             'tenant_id' => $tenantId,
@@ -108,7 +112,7 @@ class EmployeeController extends Controller
 
     public function edit(Employee $employee): Response
     {
-        $this->authorizesTenantAccess(request(), $employee->tenant_id);
+        $this->authorizesTenantAccess(request(), $employee->tenant_id, PermissionModule::Employees, PermissionAction::View);
 
         return Inertia::render('employees/Edit', [
             'employee' => $employee->only([
@@ -129,7 +133,7 @@ class EmployeeController extends Controller
 
     public function update(UpdateEmployeeRequest $request, Employee $employee): RedirectResponse
     {
-        $this->authorizesTenantAccess($request, $employee->tenant_id);
+        $this->authorizesTenantAccess($request, $employee->tenant_id, PermissionModule::Employees, PermissionAction::Edit);
 
         $employee->update($request->validated());
 
@@ -138,7 +142,7 @@ class EmployeeController extends Controller
 
     public function destroy(Request $request, Employee $employee): RedirectResponse
     {
-        $this->authorizesTenantAccess($request, $employee->tenant_id);
+        $this->authorizesTenantAccess($request, $employee->tenant_id, PermissionModule::Employees, PermissionAction::Delete);
 
         $employee->delete();
 
@@ -225,7 +229,7 @@ class EmployeeController extends Controller
             return redirect()->back()->with('error', 'No active company selected.');
         }
 
-        $this->authorizesTenantAccess($request, $tenantId);
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Employees, PermissionAction::Create);
 
         // Pre-load existing values for duplicate detection (lowercased for case-insensitive comparison)
         $existingNumbers = Employee::where('tenant_id', $tenantId)
@@ -463,11 +467,16 @@ class EmployeeController extends Controller
         return $result ?: '—';
     }
 
-    private function authorizesTenantAccess(Request $request, int $tenantId): void
+    private function authorizesTenantAccess(Request $request, int $tenantId, ?PermissionModule $module = null, ?PermissionAction $action = null): void
     {
         $tenant = Tenant::findOrFail($tenantId);
+
         if (! $request->user()->canAccessTenant($tenant)) {
             abort(403, 'You do not have access to this tenant.');
+        }
+
+        if ($module !== null && ! $request->user()->canPerform($tenant, $module, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
         }
     }
 }

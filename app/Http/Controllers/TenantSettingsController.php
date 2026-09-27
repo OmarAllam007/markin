@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Http\Requests\UpdateTenantSettingsRequest;
 use App\Models\CompanySetting;
 use App\Models\Tenant;
@@ -20,7 +22,7 @@ class TenantSettingsController extends Controller
 
         $tenant = Tenant::findOrFail($tenantId);
 
-        if (! $request->user()->canAccessTenant($tenant)) {
+        if (! $request->user()->canPerform($tenant, PermissionModule::GeneralSettings, PermissionAction::Edit)) {
             abort(403);
         }
 

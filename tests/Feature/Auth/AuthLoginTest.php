@@ -7,7 +7,9 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 uses(RefreshDatabase::class);
 
 it('shows the login page', function () {
-    $this->get(route('login'))->assertOk();
+    $this->get(route('login'))
+        ->assertOk()
+        ->assertInertia(fn ($page) => $page->component('Public/Login'));
 });
 
 it('logs in an active user', function () {

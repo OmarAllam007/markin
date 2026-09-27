@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Http\Requests\StoreDepartmentRequest;
 use App\Http\Requests\UpdateDepartmentRequest;
 use App\Models\Department;
@@ -27,6 +29,8 @@ class DepartmentController extends Controller
                 'filters' => ['search' => null],
             ]);
         }
+
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Departments, PermissionAction::View);
 
         $departments = Department::query()
             ->where('tenant_id', $tenantId)
@@ -55,7 +59,7 @@ class DepartmentController extends Controller
             return redirect()->back()->with('error', 'No active company selected.');
         }
 
-        $this->authorizesTenantAccess($request, $tenantId);
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Departments, PermissionAction::Create);
 
         Department::create([
             'tenant_id' => $tenantId,
@@ -68,7 +72,7 @@ class DepartmentController extends Controller
 
     public function edit(Department $department): Response
     {
-        $this->authorizesTenantAccess(request(), $department->tenant_id);
+        $this->authorizesTenantAccess(request(), $department->tenant_id, PermissionModule::Departments, PermissionAction::Edit);
 
         return Inertia::render('departments/Edit', [
             'department' => $department->only(['id', 'name']),
@@ -77,7 +81,7 @@ class DepartmentController extends Controller
 
     public function update(UpdateDepartmentRequest $request, Department $department): RedirectResponse
     {
-        $this->authorizesTenantAccess($request, $department->tenant_id);
+        $this->authorizesTenantAccess($request, $department->tenant_id, PermissionModule::Departments, PermissionAction::Edit);
 
         $department->update($request->validated());
 
@@ -86,18 +90,23 @@ class DepartmentController extends Controller
 
     public function destroy(Request $request, Department $department): RedirectResponse
     {
-        $this->authorizesTenantAccess($request, $department->tenant_id);
+        $this->authorizesTenantAccess($request, $department->tenant_id, PermissionModule::Departments, PermissionAction::Delete);
 
         $department->delete();
 
         return redirect()->route('departments.index')->with('success', 'Department deleted successfully.');
     }
 
-    private function authorizesTenantAccess(Request $request, int $tenantId): void
+    private function authorizesTenantAccess(Request $request, int $tenantId, ?PermissionModule $module = null, ?PermissionAction $action = null): void
     {
         $tenant = Tenant::findOrFail($tenantId);
+
         if (! $request->user()->canAccessTenant($tenant)) {
             abort(403, 'You do not have access to this tenant.');
+        }
+
+        if ($module !== null && ! $request->user()->canPerform($tenant, $module, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
         }
     }
 }

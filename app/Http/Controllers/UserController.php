@@ -93,7 +93,7 @@ class UserController extends Controller
             return redirect()->back()->with('error', 'No active company selected.');
         }
 
-        $this->authorizesTenantAccess($request, $tenantId);
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::AdminUsers, PermissionAction::Create);
 
         $user = User::create([
             'name' => $data['name'],
@@ -173,7 +173,7 @@ class UserController extends Controller
         $user->update($userFields);
 
         if (! $isSelf && $tenantId) {
-            $this->authorizesTenantAccess($request, $tenantId);
+            $this->authorizesTenantAccess($request, $tenantId, PermissionModule::AdminUsers, PermissionAction::Edit);
 
             $user->tenants()->syncWithoutDetaching([
                 $tenantId => [
@@ -197,16 +197,30 @@ class UserController extends Controller
             return redirect()->route('users.index')->with('error', 'You cannot delete your own account.');
         }
 
+        $tenantId = $request->user()->current_tenant_id;
+
+        abort_if(
+            ! $tenantId || ! $user->tenants()->where('tenants.id', $tenantId)->exists(),
+            403
+        );
+
+        $this->authorizesTenantAccess($request, $tenantId, PermissionModule::AdminUsers, PermissionAction::Delete);
+
         $user->delete();
 
         return redirect()->route('users.index')->with('success', 'User deleted successfully.');
     }
 
-    private function authorizesTenantAccess(Request $request, int $tenantId): void
+    private function authorizesTenantAccess(Request $request, int $tenantId, ?PermissionModule $module = null, ?PermissionAction $action = null): void
     {
         $tenant = Tenant::findOrFail($tenantId);
+
         if (! $request->user()->canAccessTenant($tenant)) {
             abort(403, 'You do not have access to this tenant.');
+        }
+
+        if ($module !== null && ! $request->user()->canPerform($tenant, $module, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
         }
     }
 
