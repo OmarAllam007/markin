@@ -11,7 +11,7 @@ use App\Http\Controllers\Ticketing\TicketApprovalController;
 use App\Http\Controllers\Ticketing\TicketController;
 use Illuminate\Support\Facades\Route;
 
-Route::middleware('auth')->prefix('ticketing')->name('ticketing.')->group(function () {
+Route::middleware(['auth', 'verified'])->prefix('ticketing')->name('ticketing.')->group(function () {
     Route::prefix('admin')->name('admin.')->group(function () {
         Route::resource('categories', CategoryController::class)->except(['show']);
         Route::resource('subcategories', SubcategoryController::class)->except(['show']);

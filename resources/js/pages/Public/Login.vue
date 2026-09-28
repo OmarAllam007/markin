@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue';
 
 import { store as loginStore } from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
 import { register } from '@/routes/index';
+import { create as forgotPassword } from '@/actions/App/Http/Controllers/Auth/PasswordResetLinkController';
 
 type Language = 'en' | 'ar';
 
@@ -36,6 +37,7 @@ const copy = {
         remember: 'Keep me signed in',
         signingIn: 'Signing in…',
         submit: 'Sign in',
+        forgotPassword: 'Forgot password?',
         newToMarkin: 'New to Markin?',
         createWorkspace: 'Create a workspace',
         encrypted: 'Protected with encrypted data transfer',
@@ -65,6 +67,7 @@ const copy = {
         remember: 'إبقائي مسجّلًا للدخول',
         signingIn: 'جارٍ تسجيل الدخول…',
         submit: 'تسجيل الدخول',
+        forgotPassword: 'نسيت كلمة المرور؟',
         newToMarkin: 'جديد في ماركن؟',
         createWorkspace: 'أنشئ مساحة عمل',
         encrypted: 'نقل بيانات مشفّر ومحمي',
@@ -226,6 +229,11 @@ const submit = () => form.post(loginStore.url());
                             >
                                 {{ form.errors.password }}
                             </p>
+                            <Link
+                                :href="forgotPassword.url()"
+                                class="forgot-password-link"
+                                >{{ text.forgotPassword }}</Link
+                            >
                         </div>
 
                         <label class="remember" for="remember">
@@ -517,6 +525,22 @@ const submit = () => form.post(loginStore.url());
     margin: 0.4rem 0 0;
     color: #a94735;
     font-size: 0.73rem;
+}
+.forgot-password-link {
+    display: inline-block;
+    margin-top: 0.55rem;
+    color: var(--green);
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-decoration: none;
+}
+.forgot-password-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.forgot-password-link:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 3px;
 }
 .password-label {
     display: flex;

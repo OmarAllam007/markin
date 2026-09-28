@@ -21,9 +21,11 @@ class RegisteredUserController extends Controller
     {
         $user = $registerTenantUser->execute($request->validated());
 
+        $user->sendEmailVerificationNotification();
+
         Auth::login($user);
         $request->session()->regenerate();
 
-        return redirect()->route('users.index');
+        return redirect()->route('verification.notice');
     }
 }

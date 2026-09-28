@@ -1,0 +1,235 @@
+/* Shared look for the secondary auth pages (forgot/reset password, verify email).
+   Mirrors Login.vue's design tokens so these feel like the same product. */
+.login-page {
+    --ink: #182522;
+    --muted: #67716e;
+    --line: #dfe4e1;
+    --green: #1f614f;
+    --paper: #f4f6f3;
+    min-height: 100vh;
+    color: var(--ink);
+    background: var(--paper);
+    font-family: 'Instrument Sans', sans-serif;
+}
+
+.page-header {
+    height: 6.75rem;
+    display: flex;
+    align-items: center;
+    padding-inline: clamp(1.5rem, 4.5vw, 5rem);
+    border-bottom: 1px solid var(--line);
+}
+
+.brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.65rem;
+    color: var(--ink);
+    font-size: 1.35rem;
+    font-weight: 650;
+    letter-spacing: -0.045em;
+    text-decoration: none;
+}
+
+.brand-symbol {
+    width: 1.85rem;
+    height: 1.85rem;
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    gap: 3px;
+    padding: 0.4rem;
+    border-radius: 0.42rem;
+    background: var(--green);
+}
+
+.brand-symbol i {
+    width: 3px;
+    border-radius: 2px;
+    background: #fff;
+}
+.brand-symbol i:nth-child(1) {
+    height: 42%;
+}
+.brand-symbol i:nth-child(2) {
+    height: 100%;
+}
+.brand-symbol i:nth-child(3) {
+    height: 66%;
+}
+
+.page-content-single {
+    min-height: calc(100vh - 6.75rem);
+    display: grid;
+    place-items: center;
+}
+
+.form-section {
+    display: grid;
+    place-items: center;
+    padding: clamp(3rem, 6vw, 7rem) clamp(1.25rem, 5vw, 4rem);
+    width: 100%;
+}
+
+.form-wrap {
+    width: min(100%, 26.5rem);
+}
+.form-heading {
+    margin-bottom: 2.2rem;
+    text-align: center;
+}
+.form-heading p {
+    margin: 0 0 0.85rem;
+    color: var(--green);
+    font-size: 0.68rem;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+}
+.form-heading h2 {
+    margin: 0;
+    font-size: clamp(1.7rem, 2.4vw, 2.2rem);
+    font-weight: 570;
+    line-height: 1.15;
+    letter-spacing: -0.04em;
+}
+.form-heading span {
+    display: block;
+    margin-top: 0.8rem;
+    color: var(--muted);
+    font-size: 0.9rem;
+    line-height: 1.6;
+}
+
+.status-note {
+    margin: 0 0 1.4rem;
+    padding: 0.85rem 1rem;
+    border: 1px solid #bcd8cd;
+    border-radius: 0.42rem;
+    color: var(--green);
+    background: #eef6f2;
+    font-size: 0.82rem;
+    text-align: center;
+}
+
+.field {
+    margin-bottom: 1.45rem;
+}
+.field label {
+    display: block;
+    margin-bottom: 0.55rem;
+    font-size: 0.78rem;
+    font-weight: 650;
+}
+.field input {
+    width: 100%;
+    height: 3.5rem;
+    padding: 0 0.95rem;
+    border: 1px solid #cbd3cf;
+    border-radius: 0.42rem;
+    outline: 0;
+    color: var(--ink);
+    background: #fff;
+    font: inherit;
+    font-size: 0.9rem;
+    transition:
+        border-color 130ms ease,
+        box-shadow 130ms ease;
+}
+.field input::placeholder {
+    color: #a0a8a5;
+}
+.field input:focus {
+    border-color: var(--green);
+    box-shadow: 0 0 0 3px rgba(31, 97, 79, 0.1);
+}
+.field input[aria-invalid='true'] {
+    border-color: #bd604d;
+}
+.field-error {
+    margin: 0.4rem 0 0;
+    color: #a94735;
+    font-size: 0.73rem;
+}
+
+.submit {
+    width: 100%;
+    height: 3.55rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+    border: 1px solid var(--ink);
+    border-radius: 0.42rem;
+    color: #fff;
+    background: var(--ink);
+    font: inherit;
+    font-size: 0.84rem;
+    font-weight: 650;
+    cursor: pointer;
+    transition:
+        background 130ms ease,
+        transform 130ms ease;
+}
+.submit:hover:not(:disabled) {
+    background: var(--green);
+    border-color: var(--green);
+}
+.submit:active:not(:disabled) {
+    transform: translateY(1px);
+}
+.submit:focus-visible {
+    outline: 3px solid rgba(31, 97, 79, 0.2);
+    outline-offset: 3px;
+}
+.submit:disabled {
+    opacity: 0.65;
+    cursor: wait;
+}
+
+.register-prompt {
+    margin: 1.6rem 0 0;
+    color: #707a77;
+    text-align: center;
+    font-size: 0.8rem;
+}
+.register-prompt a {
+    margin-inline-start: 0.25rem;
+    color: var(--green);
+    font-weight: 650;
+    text-decoration: none;
+}
+.register-prompt a:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+.register-prompt a:focus-visible {
+    outline: 2px solid var(--green);
+    outline-offset: 3px;
+}
+
+.secondary-action {
+    display: block;
+    width: 100%;
+    margin-top: 0.9rem;
+    padding: 0;
+    border: 0;
+    background: transparent;
+    color: var(--green);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+}
+.secondary-action:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .field input,
+    .submit {
+        transition: none;
+    }
+}

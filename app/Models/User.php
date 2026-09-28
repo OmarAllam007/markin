@@ -6,6 +6,7 @@ use App\Enums\PermissionAction;
 use App\Enums\PermissionModule;
 use App\Enums\UserStatus;
 use Database\Factories\UserFactory;
+use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Collection;
@@ -18,7 +19,7 @@ use Illuminate\Notifications\Notifiable;
 
 #[Fillable(['name', 'email', 'country_code', 'mobile', 'password', 'current_tenant_id', 'preferred_theme', 'preferred_language'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable
+class User extends Authenticatable implements MustVerifyEmail
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, Notifiable;
