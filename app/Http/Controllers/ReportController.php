@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Enums\AttendanceSource;
 use App\Enums\AttendanceStatus;
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Enums\PunchType;
 use App\Models\Attendance;
 use App\Models\Department;
@@ -31,14 +33,14 @@ class ReportController extends Controller
 {
     public function index(Request $request): Response
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         return Inertia::render('reports/Index');
     }
 
     public function overtime(Request $request): Response|StreamedResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         $tenantId = $request->user()->current_tenant_id;
 
@@ -47,6 +49,9 @@ class ReportController extends Controller
         }
 
         $this->assertTenantAccess($request, $tenantId);
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
 
         $from = $request->filled('date_from')
             ? CarbonImmutable::parse($request->input('date_from'))
@@ -69,6 +74,8 @@ class ReportController extends Controller
                 'attendances.location_id',
             ])
             ->where('attendances.tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('department_id', $deptIds)))
+            ->when($locIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('location_id', $locIds)))
             ->where('attendances.overtime_minutes', '>', 0)
             ->with([
                 'employee:id,english_name,arabic_name,employee_number,job_title_en,department_id,location_id',
@@ -129,15 +136,19 @@ class ReportController extends Controller
                 'department_id' => $departmentId ? (int) $departmentId : null,
             ],
             'filterOptions' => [
-                'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
-                'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+                'locations' => Location::where('tenant_id', $tenantId)
+                    ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                    ->orderBy('name')->get(['id', 'name']),
+                'departments' => Department::where('tenant_id', $tenantId)
+                    ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                    ->orderBy('name')->get(['id', 'name']),
             ],
         ]);
     }
 
     public function dailySummary(Request $request): Response|StreamedResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         $tenantId = $request->user()->current_tenant_id;
 
@@ -146,6 +157,9 @@ class ReportController extends Controller
         }
 
         $this->assertTenantAccess($request, $tenantId);
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
 
         $date = $request->filled('date')
             ? CarbonImmutable::parse($request->input('date'))
@@ -155,6 +169,8 @@ class ReportController extends Controller
 
         $attendances = Attendance::query()
             ->where('attendances.tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('department_id', $deptIds)))
+            ->when($locIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('location_id', $locIds)))
             ->whereDate('attendances.attendance_date', $date->toDateString())
             ->with([
                 'employee:id,department_id,location_id',
@@ -190,15 +206,19 @@ class ReportController extends Controller
                 'group_by' => $groupBy,
             ],
             'filterOptions' => [
-                'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
-                'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+                'locations' => Location::where('tenant_id', $tenantId)
+                    ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                    ->orderBy('name')->get(['id', 'name']),
+                'departments' => Department::where('tenant_id', $tenantId)
+                    ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                    ->orderBy('name')->get(['id', 'name']),
             ],
         ]);
     }
 
     public function monthlySummary(Request $request): Response|StreamedResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         $tenantId = $request->user()->current_tenant_id;
 
@@ -207,6 +227,9 @@ class ReportController extends Controller
         }
 
         $this->assertTenantAccess($request, $tenantId);
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
 
         $from = $request->filled('date_from')
             ? CarbonImmutable::parse($request->input('date_from'))
@@ -225,6 +248,8 @@ class ReportController extends Controller
 
         $attendances = Attendance::query()
             ->where('tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('department_id', $deptIds)))
+            ->when($locIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('location_id', $locIds)))
             ->whereDate('attendance_date', '>=', $from->toDateString())
             ->whereDate('attendance_date', '<=', $to->toDateString())
             ->with([
@@ -290,15 +315,19 @@ class ReportController extends Controller
                 'department_id' => $departmentId ? (int) $departmentId : null,
             ],
             'filterOptions' => [
-                'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
-                'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+                'locations' => Location::where('tenant_id', $tenantId)
+                    ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                    ->orderBy('name')->get(['id', 'name']),
+                'departments' => Department::where('tenant_id', $tenantId)
+                    ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                    ->orderBy('name')->get(['id', 'name']),
             ],
         ]);
     }
 
     public function detailedReport(Request $request): Response|StreamedResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         $tenantId = $request->user()->current_tenant_id;
 
@@ -307,6 +336,9 @@ class ReportController extends Controller
         }
 
         $this->assertTenantAccess($request, $tenantId);
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
 
         $from = $request->filled('date_from')
             ? CarbonImmutable::parse($request->input('date_from'))
@@ -353,6 +385,8 @@ class ReportController extends Controller
 
         $baseQuery = Employee::query()
             ->where('tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereIn('department_id', $deptIds))
+            ->when($locIds !== null, fn ($q) => $q->whereIn('location_id', $locIds))
             ->whereHas('attendances', fn ($q) => $q
                 ->whereDate('attendance_date', '>=', $from->toDateString())
                 ->whereDate('attendance_date', '<=', $to->toDateString())
@@ -393,8 +427,12 @@ class ReportController extends Controller
                 'department_id' => $departmentId ? (int) $departmentId : null,
             ],
             'filterOptions' => [
-                'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
-                'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+                'locations' => Location::where('tenant_id', $tenantId)
+                    ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                    ->orderBy('name')->get(['id', 'name']),
+                'departments' => Department::where('tenant_id', $tenantId)
+                    ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                    ->orderBy('name')->get(['id', 'name']),
             ],
         ]);
     }
@@ -474,7 +512,7 @@ class ReportController extends Controller
 
     public function dailySummaryGroupDetail(Request $request): JsonResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         $tenantId = $request->user()->current_tenant_id;
 
@@ -483,6 +521,9 @@ class ReportController extends Controller
         }
 
         $this->assertTenantAccess($request, $tenantId);
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
 
         $date = $request->filled('date')
             ? CarbonImmutable::parse($request->input('date'))
@@ -493,6 +534,8 @@ class ReportController extends Controller
 
         $attendances = Attendance::query()
             ->where('tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('department_id', $deptIds)))
+            ->when($locIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('location_id', $locIds)))
             ->whereDate('attendance_date', $date->toDateString())
             ->with([
                 'employee:id,english_name,arabic_name,employee_number,department_id,location_id',
@@ -576,7 +619,7 @@ class ReportController extends Controller
 
     public function lateArrivals(Request $request): Response|StreamedResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         $tenantId = $request->user()->current_tenant_id;
 
@@ -585,6 +628,9 @@ class ReportController extends Controller
         }
 
         $this->assertTenantAccess($request, $tenantId);
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
 
         $from = $request->filled('date_from')
             ? CarbonImmutable::parse($request->input('date_from'))
@@ -610,6 +656,8 @@ class ReportController extends Controller
                 'attendances.status',
             ])
             ->where('attendances.tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('department_id', $deptIds)))
+            ->when($locIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('location_id', $locIds)))
             ->where('attendances.total_late_minutes', '>=', $minLateMinutes)
             ->whereDate('attendances.attendance_date', '>=', $from->toDateString())
             ->whereDate('attendances.attendance_date', '<=', $to->toDateString())
@@ -673,8 +721,12 @@ class ReportController extends Controller
                 'min_late_minutes' => $minLateMinutes,
             ],
             'filterOptions' => [
-                'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
-                'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+                'locations' => Location::where('tenant_id', $tenantId)
+                    ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                    ->orderBy('name')->get(['id', 'name']),
+                'departments' => Department::where('tenant_id', $tenantId)
+                    ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                    ->orderBy('name')->get(['id', 'name']),
                 'shifts' => WorkShift::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
             ],
         ]);
@@ -682,7 +734,7 @@ class ReportController extends Controller
 
     public function missingPunches(Request $request): Response|StreamedResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         $tenantId = $request->user()->current_tenant_id;
 
@@ -691,6 +743,9 @@ class ReportController extends Controller
         }
 
         $this->assertTenantAccess($request, $tenantId);
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
 
         $from = $request->filled('date_from')
             ? CarbonImmutable::parse($request->input('date_from'))
@@ -728,6 +783,8 @@ class ReportController extends Controller
                 'attendances.location_id',
             ])
             ->where('attendances.tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('department_id', $deptIds)))
+            ->when($locIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('location_id', $locIds)))
             ->whereDate('attendances.attendance_date', '>=', $from->toDateString())
             ->whereDate('attendances.attendance_date', '<=', $to->toDateString())
             ->where(function ($q) use ($punchType, $nonWorkingStatuses) {
@@ -834,8 +891,12 @@ class ReportController extends Controller
                 'punch_type' => $punchType,
             ],
             'filterOptions' => [
-                'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
-                'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+                'locations' => Location::where('tenant_id', $tenantId)
+                    ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                    ->orderBy('name')->get(['id', 'name']),
+                'departments' => Department::where('tenant_id', $tenantId)
+                    ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                    ->orderBy('name')->get(['id', 'name']),
                 'shifts' => WorkShift::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
             ],
         ]);
@@ -843,7 +904,7 @@ class ReportController extends Controller
 
     public function departmentAttendance(Request $request): Response|StreamedResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         $tenantId = $request->user()->current_tenant_id;
 
@@ -852,6 +913,9 @@ class ReportController extends Controller
         }
 
         $this->assertTenantAccess($request, $tenantId);
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
 
         $from = $request->filled('date_from')
             ? CarbonImmutable::parse($request->input('date_from'))
@@ -872,6 +936,8 @@ class ReportController extends Controller
                 'attendances.overtime_minutes',
             ])
             ->where('attendances.tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('department_id', $deptIds)))
+            ->when($locIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('location_id', $locIds)))
             ->whereDate('attendances.attendance_date', '>=', $from->toDateString())
             ->whereDate('attendances.attendance_date', '<=', $to->toDateString())
             ->with([
@@ -966,14 +1032,16 @@ class ReportController extends Controller
                 'location_id' => $locationId ? (int) $locationId : null,
             ],
             'filterOptions' => [
-                'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+                'locations' => Location::where('tenant_id', $tenantId)
+                    ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                    ->orderBy('name')->get(['id', 'name']),
             ],
         ]);
     }
 
     public function absenceReport(Request $request): Response|StreamedResponse
     {
-        $this->authorize('viewAny', Attendance::class);
+        $this->assertCanViewReports($request);
 
         $tenantId = $request->user()->current_tenant_id;
 
@@ -982,6 +1050,9 @@ class ReportController extends Controller
         }
 
         $this->assertTenantAccess($request, $tenantId);
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
 
         $from = $request->filled('date_from')
             ? CarbonImmutable::parse($request->input('date_from'))
@@ -1003,6 +1074,8 @@ class ReportController extends Controller
                 'attendances.status',
             ])
             ->where('attendances.tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('department_id', $deptIds)))
+            ->when($locIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('location_id', $locIds)))
             ->where('attendances.status', AttendanceStatus::Absent)
             ->whereDate('attendances.attendance_date', '>=', $from->toDateString())
             ->whereDate('attendances.attendance_date', '<=', $to->toDateString())
@@ -1078,8 +1151,12 @@ class ReportController extends Controller
                 'shift_id' => $shiftId ? (int) $shiftId : null,
             ],
             'filterOptions' => [
-                'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
-                'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+                'locations' => Location::where('tenant_id', $tenantId)
+                    ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                    ->orderBy('name')->get(['id', 'name']),
+                'departments' => Department::where('tenant_id', $tenantId)
+                    ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                    ->orderBy('name')->get(['id', 'name']),
                 'shifts' => WorkShift::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
             ],
         ]);
@@ -1156,6 +1233,25 @@ class ReportController extends Controller
     {
         $tenant = Tenant::findOrFail($tenantId);
         if (! $request->user()->canAccessTenant($tenant)) {
+            abort(403);
+        }
+    }
+
+    /**
+     * Reports are gated on the Reports/View permission (not Attendance's),
+     * since the "Control Permissions" screen models them as separate modules.
+     */
+    private function assertCanViewReports(Request $request): void
+    {
+        $tenantId = $request->user()->current_tenant_id;
+
+        if ($tenantId === null) {
+            abort(403);
+        }
+
+        $tenant = Tenant::findOrFail($tenantId);
+
+        if (! $request->user()->canPerform($tenant, PermissionModule::Reports, PermissionAction::View)) {
             abort(403);
         }
     }

@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Ticketing\Admin;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\Admin\StoreSlaRequest;
 use App\Http\Requests\Ticketing\Admin\UpdateSlaRequest;
+use App\Models\Tenant;
 use App\Models\TicketSla;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -17,6 +20,8 @@ class SlaController extends Controller
     {
         $tenantId = $request->user()->current_tenant_id;
 
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
+
         $slas = TicketSla::query()
             ->where('tenant_id', $tenantId)
             ->orderByDesc('created_at')
@@ -28,14 +33,18 @@ class SlaController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $this->authorizeTicketAdmin($request, $request->user()->current_tenant_id, PermissionAction::Edit);
+
         return Inertia::render('ticketing/admin/slas/Create');
     }
 
     public function store(StoreSlaRequest $request): RedirectResponse
     {
         $tenantId = $request->user()->current_tenant_id;
+
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
 
         TicketSla::create([
             ...$request->validated(),
@@ -50,7 +59,7 @@ class SlaController extends Controller
 
     public function edit(Request $request, TicketSla $sla): Response
     {
-        abort_if($sla->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $sla->tenant_id, PermissionAction::Edit);
 
         return Inertia::render('ticketing/admin/slas/Edit', [
             'sla' => $sla->only(['id', 'name', 'first_response_hours', 'resolve_hours', 'business_hours_only', 'is_active']),
@@ -59,7 +68,7 @@ class SlaController extends Controller
 
     public function update(UpdateSlaRequest $request, TicketSla $sla): RedirectResponse
     {
-        abort_if($sla->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $sla->tenant_id, PermissionAction::Edit);
 
         $sla->update([
             ...$request->validated(),
@@ -73,11 +82,22 @@ class SlaController extends Controller
 
     public function destroy(Request $request, TicketSla $sla): RedirectResponse
     {
-        abort_if($sla->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $sla->tenant_id, PermissionAction::Delete);
 
         $sla->delete();
 
         return redirect()->route('ticketing.admin.slas.index')
             ->with('success', 'SLA policy deleted successfully.');
+    }
+
+    private function authorizeTicketAdmin(Request $request, ?int $tenantId, PermissionAction $action): void
+    {
+        abort_if($tenantId === null || $tenantId !== $request->user()->current_tenant_id, 403);
+
+        $tenant = Tenant::findOrFail($tenantId);
+
+        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
+        }
     }
 }

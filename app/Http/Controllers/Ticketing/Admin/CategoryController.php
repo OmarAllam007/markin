@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Ticketing\Admin;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Enums\TicketType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\Admin\StoreCategoryRequest;
 use App\Http\Requests\Ticketing\Admin\UpdateCategoryRequest;
+use App\Models\Tenant;
 use App\Models\TicketCategory;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -22,6 +25,8 @@ class CategoryController extends Controller
 
         $tenantId = $request->user()->current_tenant_id;
 
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
+
         $categories = TicketCategory::query()
             ->where('tenant_id', $tenantId)
             ->withCount('subcategories')
@@ -36,8 +41,10 @@ class CategoryController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $this->authorizeTicketAdmin($request, $request->user()->current_tenant_id, PermissionAction::Edit);
+
         return Inertia::render('ticketing/admin/categories/Create', [
             'types' => collect(TicketType::cases())->map(fn ($t) => ['value' => $t->value, 'label' => $t->label()]),
         ]);
@@ -46,6 +53,8 @@ class CategoryController extends Controller
     public function store(StoreCategoryRequest $request): RedirectResponse
     {
         $tenantId = $request->user()->current_tenant_id;
+
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
 
         TicketCategory::create([
             ...$request->validated(),
@@ -59,7 +68,7 @@ class CategoryController extends Controller
 
     public function edit(Request $request, TicketCategory $category): Response
     {
-        abort_if($category->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $category->tenant_id, PermissionAction::Edit);
 
         return Inertia::render('ticketing/admin/categories/Edit', [
             'category' => $category->only(['id', 'name', 'name_ar', 'description', 'icon', 'color', 'is_active', 'ticket_type']),
@@ -69,7 +78,7 @@ class CategoryController extends Controller
 
     public function update(UpdateCategoryRequest $request, TicketCategory $category): RedirectResponse
     {
-        abort_if($category->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $category->tenant_id, PermissionAction::Edit);
 
         $category->update([
             ...$request->validated(),
@@ -82,11 +91,22 @@ class CategoryController extends Controller
 
     public function destroy(Request $request, TicketCategory $category): RedirectResponse
     {
-        abort_if($category->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $category->tenant_id, PermissionAction::Delete);
 
         $category->delete();
 
         return redirect()->route('ticketing.admin.categories.index')
             ->with('success', 'Category deleted successfully.');
+    }
+
+    private function authorizeTicketAdmin(Request $request, ?int $tenantId, PermissionAction $action): void
+    {
+        abort_if($tenantId === null || $tenantId !== $request->user()->current_tenant_id, 403);
+
+        $tenant = Tenant::findOrFail($tenantId);
+
+        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
+        }
     }
 }

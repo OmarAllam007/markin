@@ -47,6 +47,10 @@ class AttendanceController extends Controller
 
         $this->authorizesTenantAccess($request, $tenantId);
 
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
+
         $filters = $request->validated();
         $from = isset($filters['date_from'])
             ? CarbonImmutable::parse($filters['date_from'])
@@ -57,6 +61,8 @@ class AttendanceController extends Controller
 
         $query = Attendance::query()
             ->where('attendances.tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('department_id', $deptIds)))
+            ->when($locIds !== null, fn ($q) => $q->whereHas('employee', fn ($q) => $q->whereIn('location_id', $locIds)))
             ->with([
                 'employee:id,english_name,arabic_name,employee_number,department_id,location_id,tenant_id',
                 'employee.department:id,name',
@@ -113,7 +119,7 @@ class AttendanceController extends Controller
                 'date_from' => $from->toDateString(),
                 'date_to' => $to->toDateString(),
             ],
-            'filterOptions' => $this->filterOptions($tenantId),
+            'filterOptions' => $this->filterOptions($tenantId, $deptIds, $locIds),
             'enumLabels' => $this->enumLabels(),
         ]);
     }
@@ -134,15 +140,23 @@ class AttendanceController extends Controller
 
         $this->authorizesTenantAccess($request, $tenantId);
 
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
+
         $employees = Employee::query()
             ->where('tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereIn('department_id', $deptIds))
+            ->when($locIds !== null, fn ($q) => $q->whereIn('location_id', $locIds))
             ->orderBy('english_name')
             ->get(['id', 'english_name', 'arabic_name', 'employee_number', 'work_shift_id']);
 
         return Inertia::render('attendance/Create', [
             'employees' => $employees,
             'filterOptions' => [
-                'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+                'locations' => Location::where('tenant_id', $tenantId)
+                    ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                    ->orderBy('name')->get(['id', 'name']),
                 'shifts' => WorkShift::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
             ],
             'enumLabels' => $this->enumLabels(),
@@ -168,6 +182,7 @@ class AttendanceController extends Controller
             ->findOrFail($data['employee_id']);
 
         $this->validation->assertEmployeeBelongsToTenant($employee, $tenantId);
+        $this->assertEmployeeWithinScope($request, $employee, $tenantId);
 
         $shift = $this->scheduleResolver->resolveShiftForAttendance(
             $data['shift_id'] ?? null,
@@ -431,6 +446,7 @@ class AttendanceController extends Controller
         $this->authorize('viewAny', Attendance::class);
 
         $this->authorizesTenantAccess($request, $employee->tenant_id);
+        $this->assertEmployeeWithinScope($request, $employee, $employee->tenant_id);
 
         $filters = $request->validated();
         $from = isset($filters['date_from'])
@@ -467,6 +483,25 @@ class AttendanceController extends Controller
         $tenant = Tenant::findOrFail($tenantId);
         if (! $request->user()->canAccessTenant($tenant)) {
             abort(403, 'You do not have access to this tenant.');
+        }
+    }
+
+    /**
+     * A query filter doesn't apply to a single fetched record, so a scoped
+     * non-admin is explicitly checked against their department/location scope here.
+     */
+    private function assertEmployeeWithinScope(Request $request, Employee $employee, int $tenantId): void
+    {
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
+
+        if ($deptIds !== null && ! in_array($employee->department_id, $deptIds, true)) {
+            abort(403, 'You do not have access to this employee.');
+        }
+
+        if ($locIds !== null && ! in_array($employee->location_id, $locIds, true)) {
+            abort(403, 'You do not have access to this employee.');
         }
     }
 
@@ -525,7 +560,11 @@ class AttendanceController extends Controller
     /**
      * @return array{employees: Collection, departments: Collection, businessUnits: Collection, locations: Collection}
      */
-    private function filterOptions(int $tenantId): array
+    /**
+     * @param  array<int>|null  $deptIds
+     * @param  array<int>|null  $locIds
+     */
+    private function filterOptions(int $tenantId, ?array $deptIds = null, ?array $locIds = null): array
     {
         $tenant = Tenant::with('children')->find($tenantId);
 
@@ -538,10 +577,17 @@ class AttendanceController extends Controller
         }
 
         return [
-            'employees' => Employee::where('tenant_id', $tenantId)->orderBy('english_name')->get(['id', 'english_name', 'employee_number']),
-            'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+            'employees' => Employee::where('tenant_id', $tenantId)
+                ->when($deptIds !== null, fn ($q) => $q->whereIn('department_id', $deptIds))
+                ->when($locIds !== null, fn ($q) => $q->whereIn('location_id', $locIds))
+                ->orderBy('english_name')->get(['id', 'english_name', 'employee_number']),
+            'departments' => Department::where('tenant_id', $tenantId)
+                ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                ->orderBy('name')->get(['id', 'name']),
             'businessUnits' => $businessUnits,
-            'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+            'locations' => Location::where('tenant_id', $tenantId)
+                ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                ->orderBy('name')->get(['id', 'name']),
         ];
     }
 

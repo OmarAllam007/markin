@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Ticketing\Admin;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\Admin\StorePriorityRequest;
 use App\Http\Requests\Ticketing\Admin\UpdatePriorityRequest;
+use App\Models\Tenant;
 use App\Models\TicketPriority;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +19,8 @@ class PriorityController extends Controller
     public function index(Request $request): Response
     {
         $tenantId = $request->user()->current_tenant_id;
+
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
 
         $priorities = TicketPriority::query()
             ->where('tenant_id', $tenantId)
@@ -29,14 +34,18 @@ class PriorityController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
+        $this->authorizeTicketAdmin($request, $request->user()->current_tenant_id, PermissionAction::Edit);
+
         return Inertia::render('ticketing/admin/priorities/Create');
     }
 
     public function store(StorePriorityRequest $request): RedirectResponse
     {
         $tenantId = $request->user()->current_tenant_id;
+
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
 
         TicketPriority::create([
             ...$request->validated(),
@@ -50,7 +59,7 @@ class PriorityController extends Controller
 
     public function edit(Request $request, TicketPriority $priority): Response
     {
-        abort_if($priority->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $priority->tenant_id, PermissionAction::Edit);
 
         return Inertia::render('ticketing/admin/priorities/Edit', [
             'priority' => $priority->only(['id', 'name', 'color', 'icon', 'sla_hours', 'is_default', 'sort_order']),
@@ -59,7 +68,7 @@ class PriorityController extends Controller
 
     public function update(UpdatePriorityRequest $request, TicketPriority $priority): RedirectResponse
     {
-        abort_if($priority->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $priority->tenant_id, PermissionAction::Edit);
 
         $priority->update([
             ...$request->validated(),
@@ -72,11 +81,22 @@ class PriorityController extends Controller
 
     public function destroy(Request $request, TicketPriority $priority): RedirectResponse
     {
-        abort_if($priority->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $priority->tenant_id, PermissionAction::Delete);
 
         $priority->delete();
 
         return redirect()->route('ticketing.admin.priorities.index')
             ->with('success', 'Priority deleted successfully.');
+    }
+
+    private function authorizeTicketAdmin(Request $request, ?int $tenantId, PermissionAction $action): void
+    {
+        abort_if($tenantId === null || $tenantId !== $request->user()->current_tenant_id, 403);
+
+        $tenant = Tenant::findOrFail($tenantId);
+
+        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
+        }
     }
 }

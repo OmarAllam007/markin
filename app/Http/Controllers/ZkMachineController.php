@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Http\Requests\StoreZkMachineRequest;
 use App\Http\Requests\UpdateZkMachineRequest;
 use App\Models\Location;
+use App\Models\Tenant;
 use App\Models\ZkMachine;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +17,8 @@ class ZkMachineController extends Controller
     public function index(Request $request): Response
     {
         $tenantId = $request->user()->current_tenant_id;
+
+        $this->authorizeTenantAccess($request, $tenantId);
 
         $machines = ZkMachine::query()
             ->where('tenant_id', $tenantId)
@@ -34,6 +37,8 @@ class ZkMachineController extends Controller
     {
         $tenantId = $request->user()->current_tenant_id;
 
+        $this->authorizeTenantAccess($request, $tenantId);
+
         $locations = Location::where('tenant_id', $tenantId)
             ->orderBy('name')
             ->get(['id', 'name']);
@@ -50,6 +55,8 @@ class ZkMachineController extends Controller
         if (! $tenantId) {
             return redirect()->back()->with('error', 'No active company selected.');
         }
+
+        $this->authorizeTenantAccess($request, $tenantId);
 
         ZkMachine::create([
             ...$request->validated(),
@@ -96,8 +103,10 @@ class ZkMachineController extends Controller
 
     private function authorizeTenantAccess(Request $request, int $tenantId): void
     {
-        if ($request->user()->current_tenant_id !== $tenantId) {
-            abort(403);
+        $tenant = Tenant::findOrFail($tenantId);
+
+        if (! $request->user()->canAccessTenant($tenant)) {
+            abort(403, 'You do not have access to this tenant.');
         }
     }
 }

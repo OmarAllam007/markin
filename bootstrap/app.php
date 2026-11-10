@@ -1,11 +1,14 @@
 <?php
 
 use App\Helpers\ApiResponse;
+use App\Http\Middleware\EnsureApiEmployeeIsActive;
 use App\Http\Middleware\EnsureApiEmployeeTenantHasModule;
 use App\Http\Middleware\EnsureTenantHasModule;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\ResolveTenant;
+use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Auth\AuthenticationException;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -13,6 +16,7 @@ use Illuminate\Http\Middleware\AddLinkHeadersForPreloadedAssets;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Validation\ValidationException;
+use Symfony\Component\HttpKernel\Exception\HttpExceptionInterface;
 
 return Application::configure(basePath: dirname(__DIR__))
     ->withRouting(
@@ -36,6 +40,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'tenant.module' => EnsureTenantHasModule::class,
             'api.employee.module' => EnsureApiEmployeeTenantHasModule::class,
+            'api.employee.active' => EnsureApiEmployeeIsActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions) {
@@ -61,6 +66,11 @@ return Application::configure(basePath: dirname(__DIR__))
         });
 
         $exceptions->renderable(function (Throwable $e, $request) {
+            // 4xx exceptions (throttle, 404, 403) keep their own status instead of becoming 500.
+            if ($e instanceof HttpExceptionInterface || $e instanceof ModelNotFoundException || $e instanceof AuthorizationException) {
+                return null;
+            }
+
             if ($request->is('api/*')) {
 
                 Log::error($e);

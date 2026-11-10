@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Ticketing;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Enums\TicketStatus;
 use App\Enums\TicketType;
 use App\Http\Controllers\Controller;
@@ -9,6 +11,7 @@ use App\Http\Requests\Ticketing\StoreTicketRequest;
 use App\Http\Requests\Ticketing\UpdateTicketRequest;
 use App\Models\Attachment;
 use App\Models\Employee;
+use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketCategory;
 use App\Models\TicketGroup;
@@ -34,6 +37,8 @@ class TicketController extends Controller
         ]);
 
         $tenantId = $request->user()->current_tenant_id;
+
+        $this->authorizeTicketAccess($request, $tenantId, PermissionAction::View);
 
         $tickets = Ticket::query()
             ->where('tenant_id', $tenantId)
@@ -74,6 +79,8 @@ class TicketController extends Controller
     public function create(Request $request): Response
     {
         $tenantId = $request->user()->current_tenant_id;
+
+        $this->authorizeTicketAccess($request, $tenantId, PermissionAction::Create);
 
         $customFieldsByType = TicketTypeCustomField::query()
             ->where('tenant_id', $tenantId)
@@ -126,6 +133,8 @@ class TicketController extends Controller
         $tenantId = $request->user()->current_tenant_id;
         $userId = $request->user()->id;
 
+        $this->authorizeTicketAccess($request, $tenantId, PermissionAction::Create);
+
         $ticket = DB::transaction(function () use ($request, $tenantId, $userId): Ticket {
             $category = TicketCategory::find($request->validated('category_id'));
 
@@ -142,7 +151,7 @@ class TicketController extends Controller
 
             if ($request->hasFile('attachments')) {
                 foreach ($request->file('attachments') as $file) {
-                    $path = $file->store('ticketing/attachments', 'public');
+                    $path = $file->store('ticketing/attachments', 'local');
 
                     Attachment::create([
                         'attachable_type' => Ticket::class,
@@ -165,7 +174,7 @@ class TicketController extends Controller
 
     public function show(Request $request, Ticket $ticket): Response
     {
-        abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAccess($request, $ticket->tenant_id, PermissionAction::View);
 
         $ticket->load([
             'requester:id,name',
@@ -193,7 +202,7 @@ class TicketController extends Controller
     {
         $tenantId = $request->user()->current_tenant_id;
 
-        abort_if($ticket->tenant_id !== $tenantId, 403);
+        $this->authorizeTicketAccess($request, $ticket->tenant_id, PermissionAction::Edit);
 
         $ticket->load(['category:id,name', 'subcategory:id,name', 'priority:id,name', 'sla:id,name', 'group:id,name']);
 
@@ -230,7 +239,7 @@ class TicketController extends Controller
 
     public function update(UpdateTicketRequest $request, Ticket $ticket): RedirectResponse
     {
-        abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAccess($request, $ticket->tenant_id, PermissionAction::Edit);
 
         $ticket->update($request->validated());
 
@@ -240,11 +249,26 @@ class TicketController extends Controller
 
     public function destroy(Request $request, Ticket $ticket): RedirectResponse
     {
-        abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAccess($request, $ticket->tenant_id, PermissionAction::Delete);
 
         $ticket->delete();
 
         return redirect()->route('ticketing.tickets.index')
             ->with('success', 'Ticket deleted successfully.');
+    }
+
+    /**
+     * Checks both that the ticket/tenant scope matches the caller's current
+     * company, and that they hold the given Ticketing permission for it.
+     */
+    private function authorizeTicketAccess(Request $request, ?int $tenantId, PermissionAction $action): void
+    {
+        abort_if($tenantId === null || $tenantId !== $request->user()->current_tenant_id, 403);
+
+        $tenant = Tenant::findOrFail($tenantId);
+
+        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
+        }
     }
 }

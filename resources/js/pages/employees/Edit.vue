@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { update, index } from '@/routes/employees';
+import { update, index, resetDevice } from '@/routes/employees';
 import { index as employeeAttendanceIndex } from '@/routes/employees/attendance';
-import { Head, Link, useForm } from '@inertiajs/vue3';
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref, watch } from 'vue';
 
 type Option = { value: string; label: string };
@@ -35,6 +35,7 @@ type EmployeeModel = {
     working_start_date: string | null;
     contract_end_date: string | null;
     contract_type: string | null;
+    status: string;
     department_id: number | null;
     location_id: number | null;
     check_biometrics: boolean;
@@ -42,6 +43,8 @@ type EmployeeModel = {
     allow_remote_checkin: boolean;
     allow_any_location_checkin: boolean;
     work_shift_id: number | null;
+    device_name: string | null;
+    has_registered_device: boolean;
 };
 
 const props = defineProps<{
@@ -50,6 +53,7 @@ const props = defineProps<{
         genders: Option[];
         marital_statuses: Option[];
         contract_types: Option[];
+        statuses: Option[];
         religions: Option[];
         departments: IdName[];
         locations: IdName[];
@@ -62,7 +66,7 @@ const currentStep = ref(1);
 
 const STEP_FIELDS: Record<number, string[]> = {
     1: ['arabic_name', 'english_name', 'mobile_country_code', 'mobile_number', 'email', 'nationality', 'marital_status', 'birth_date', 'gender', 'religion'],
-    2: ['job_title_ar', 'job_title_en', 'employee_number', 'social_security_number', 'id_number', 'working_start_date', 'contract_end_date', 'contract_type'],
+    2: ['job_title_ar', 'job_title_en', 'employee_number', 'social_security_number', 'id_number', 'working_start_date', 'contract_end_date', 'contract_type', 'status'],
     3: ['department_id', 'location_id', 'check_biometrics', 'send_reminders', 'allow_remote_checkin', 'allow_any_location_checkin'],
     4: ['work_shift_id'],
 };
@@ -90,6 +94,7 @@ const form = useForm({
     working_start_date: e.working_start_date ?? '',
     contract_end_date: e.contract_end_date ?? '',
     contract_type: e.contract_type ?? '',
+    status: e.status,
     // Step 3
     department_id: e.department_id,
     location_id: e.location_id,
@@ -120,6 +125,14 @@ const selectShift = (id: number) => {
 
 const submit = () => form.put(update.url({ employee: props.employee.id }));
 
+const resetRegisteredDevice = () => {
+    if (!window.confirm(`Reset the registered device${props.employee.device_name ? ` (${props.employee.device_name})` : ''}? The employee will be signed out and can log in from a new phone.`)) {
+        return;
+    }
+
+    router.post(resetDevice.url({ employee: props.employee.id }), {}, { preserveScroll: true });
+};
+
 const STEPS = [
     { label: 'Employee Details', sub: 'Personal information' },
     { label: 'Job Details', sub: 'Employment information' },
@@ -144,7 +157,17 @@ const STEPS = [
                 <div class="card-title">
                     <h2 class="fw-bold">Edit employee</h2>
                 </div>
-                <div class="card-toolbar ms-auto">
+                <div class="card-toolbar ms-auto d-flex gap-2">
+                    <button
+                        v-if="employee.has_registered_device"
+                        type="button"
+                        class="btn btn-sm btn-light-warning"
+                        :title="employee.device_name ?? undefined"
+                        @click="resetRegisteredDevice"
+                    >
+                        <i class="ki-outline ki-phone fs-4"></i>
+                        Reset device
+                    </button>
                     <Link
                         :href="employeeAttendanceIndex.url({ employee: employee.id })"
                         class="btn btn-sm btn-light-primary"
@@ -563,6 +586,29 @@ const STEPS = [
                                 v-if="form.errors.contract_type"
                                 class="invalid-feedback"
                             >{{ form.errors.contract_type }}</div>
+                        </div>
+                        <div class="col-md-4">
+                            <label
+                                class="form-label required"
+                                for="emp-status"
+                            >Status</label>
+                            <select
+                                id="emp-status"
+                                v-model="form.status"
+                                class="form-select"
+                                :class="{ 'is-invalid': form.errors.status }"
+                            >
+                                <option
+                                    v-for="opt in options.statuses"
+                                    :key="opt.value"
+                                    :value="opt.value"
+                                >{{ opt.label }}</option>
+                            </select>
+                            <div class="form-text">Any status other than Active signs the employee out of the mobile app.</div>
+                            <div
+                                v-if="form.errors.status"
+                                class="invalid-feedback"
+                            >{{ form.errors.status }}</div>
                         </div>
                     </div>
                 </div>

@@ -2,6 +2,8 @@
 
 namespace App\Policies;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Models\Attendance;
 use App\Models\Tenant;
 use App\Models\User;
@@ -16,25 +18,38 @@ class AttendancePolicy
 
         $tenant = Tenant::find($user->current_tenant_id);
 
-        return $tenant !== null && $user->canAccessTenant($tenant);
+        return $tenant !== null && $user->canPerform($tenant, PermissionModule::Attendance, PermissionAction::View);
     }
 
     public function view(User $user, Attendance $attendance): bool
     {
-        return $this->tenantAccessible($user, $attendance->tenant_id);
+        $tenant = Tenant::find($attendance->tenant_id);
+
+        return $tenant !== null && $user->canPerform($tenant, PermissionModule::Attendance, PermissionAction::View);
     }
 
     public function create(User $user): bool
     {
-        return $this->adminOfCurrentTenant($user);
+        if ($user->current_tenant_id === null) {
+            return false;
+        }
+
+        $tenant = Tenant::find($user->current_tenant_id);
+
+        return $tenant !== null && $user->canPerform($tenant, PermissionModule::Attendance, PermissionAction::Create);
     }
 
     public function update(User $user, Attendance $attendance): bool
     {
-        return $this->tenantAccessible($user, $attendance->tenant_id)
-            && $this->adminOfCurrentTenant($user);
+        $tenant = Tenant::find($attendance->tenant_id);
+
+        return $tenant !== null && $user->canPerform($tenant, PermissionModule::Attendance, PermissionAction::Edit);
     }
 
+    /**
+     * Deletion has no corresponding PermissionAction on the Attendance module
+     * (only Create/View/Edit exist) — stays tenant-admin-only on purpose.
+     */
     public function delete(User $user, Attendance $attendance): bool
     {
         return $this->tenantAccessible($user, $attendance->tenant_id)
@@ -52,7 +67,8 @@ class AttendancePolicy
     }
 
     /**
-     * Approval is restricted to tenant admins so payroll corrections stay auditable.
+     * Approval is restricted to tenant admins so payroll corrections stay
+     * auditable — there's no "approve" PermissionAction to delegate this to.
      */
     public function approve(User $user, Attendance $attendance): bool
     {
@@ -61,6 +77,9 @@ class AttendancePolicy
         return $tenant !== null && $user->isAdminOf($tenant);
     }
 
+    /**
+     * Locking has no corresponding PermissionAction either — admin-only, same as approve().
+     */
     public function lock(User $user, Attendance $attendance): bool
     {
         $tenant = Tenant::find($attendance->tenant_id);

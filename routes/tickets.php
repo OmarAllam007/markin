@@ -28,5 +28,6 @@ Route::middleware(['auth', 'verified'])->prefix('ticketing')->name('ticketing.')
     Route::resource('tickets', TicketController::class);
     Route::post('tickets/{ticket}/approve', [TicketApprovalController::class, 'store'])->name('tickets.approve');
     Route::post('tickets/{ticket}/attachments', [AttachmentController::class, 'store'])->name('tickets.attachments.store');
+    Route::get('attachments/{attachment}', [AttachmentController::class, 'show'])->name('attachments.show');
     Route::delete('attachments/{attachment}', [AttachmentController::class, 'destroy'])->name('attachments.destroy');
 });

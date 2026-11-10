@@ -22,7 +22,13 @@ class StoreEmployeeRequest extends FormRequest
             'arabic_name' => ['required', 'string', 'max:255'],
             'english_name' => ['required', 'string', 'max:255'],
             'mobile_country_code' => ['required', 'string', 'max:10'],
-            'mobile_number' => ['required', 'string', 'max:30'],
+            'mobile_number' => [
+                'required', 'string', 'max:30',
+                // The mobile is the OTP login key, so it must be unique per company.
+                Rule::unique('employees')
+                    ->where('tenant_id', $this->user()->current_tenant_id)
+                    ->where('mobile_country_code', $this->input('mobile_country_code')),
+            ],
             'email' => ['nullable', 'email', 'max:255'],
             'nationality' => ['nullable', 'string', 'max:100'],
             'marital_status' => ['nullable', Rule::enum(MaritalStatus::class)],

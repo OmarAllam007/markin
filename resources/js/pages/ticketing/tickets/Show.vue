@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { index, edit, approve } from '@/routes/ticketing/tickets';
-import { destroy as destroyAttachment } from '@/routes/ticketing/attachments';
+import { destroy as destroyAttachment, show as downloadAttachment } from '@/routes/ticketing/attachments';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { ref } from 'vue';
 
@@ -235,7 +235,7 @@ const actionColors: Record<string, string> = {
                         >
                             <i class="ki-outline ki-file fs-2 text-primary" />
                             <div class="flex-grow-1">
-                                <div class="fw-bold text-gray-800 fs-7">{{ a.file_name }}</div>
+                                <a :href="downloadAttachment.url({ attachment: a.id })" class="fw-bold text-gray-800 text-hover-primary fs-7">{{ a.file_name }}</a>
                                 <div class="text-muted fs-8">{{ formatBytes(a.file_size) }} · {{ a.uploader?.name ?? '—' }}</div>
                             </div>
                             <button

@@ -3,6 +3,7 @@
 namespace App\Http\Requests;
 
 use App\Enums\ContractType;
+use App\Enums\EmployeeStatus;
 use App\Enums\Gender;
 use App\Enums\MaritalStatus;
 use Illuminate\Foundation\Http\FormRequest;
@@ -22,7 +23,14 @@ class UpdateEmployeeRequest extends FormRequest
             'arabic_name' => ['required', 'string', 'max:255'],
             'english_name' => ['required', 'string', 'max:255'],
             'mobile_country_code' => ['required', 'string', 'max:10'],
-            'mobile_number' => ['required', 'string', 'max:30'],
+            'mobile_number' => [
+                'required', 'string', 'max:30',
+                // The mobile is the OTP login key, so it must be unique per company.
+                Rule::unique('employees')
+                    ->where('tenant_id', $this->route('employee')->tenant_id)
+                    ->where('mobile_country_code', $this->input('mobile_country_code'))
+                    ->ignore($this->route('employee')),
+            ],
             'email' => ['nullable', 'email', 'max:255'],
             'nationality' => ['nullable', 'string', 'max:100'],
             'marital_status' => ['nullable', Rule::enum(MaritalStatus::class)],
@@ -39,6 +47,7 @@ class UpdateEmployeeRequest extends FormRequest
             'working_start_date' => ['nullable', 'date'],
             'contract_end_date' => ['nullable', 'date', 'after_or_equal:working_start_date'],
             'contract_type' => ['nullable', Rule::enum(ContractType::class)],
+            'status' => ['required', Rule::enum(EmployeeStatus::class)],
 
             // Employee settings
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],

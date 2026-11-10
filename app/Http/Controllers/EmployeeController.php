@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Enums\ContractType;
+use App\Enums\EmployeeStatus;
 use App\Enums\Gender;
 use App\Enums\MaritalStatus;
 use App\Enums\PermissionAction;
@@ -51,8 +52,14 @@ class EmployeeController extends Controller
 
         $this->authorizesTenantAccess($request, $tenantId, PermissionModule::Employees, PermissionAction::View);
 
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $request->user()->accessibleDepartmentIds($tenant);
+        $locIds = $request->user()->accessibleLocationIds($tenant);
+
         $employees = Employee::query()
             ->where('tenant_id', $tenantId)
+            ->when($deptIds !== null, fn ($q) => $q->whereIn('department_id', $deptIds))
+            ->when($locIds !== null, fn ($q) => $q->whereIn('location_id', $locIds))
             ->with([
                 'department:id,name',
                 'location:id,name',
@@ -78,8 +85,12 @@ class EmployeeController extends Controller
                 'location_id' => $request->integer('location_id') ?: null,
                 'work_shift_id' => $request->integer('work_shift_id') ?: null,
             ],
-            'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
-            'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+            'departments' => Department::where('tenant_id', $tenantId)
+                ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                ->orderBy('name')->get(['id', 'name']),
+            'locations' => Location::where('tenant_id', $tenantId)
+                ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                ->orderBy('name')->get(['id', 'name']),
             'workShifts' => WorkShift::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
         ]);
     }
@@ -121,12 +132,12 @@ class EmployeeController extends Controller
                 'email', 'nationality', 'marital_status', 'birth_date', 'gender', 'religion',
                 'job_title_ar', 'job_title_en', 'employee_number',
                 'social_security_number', 'id_number',
-                'working_start_date', 'contract_end_date', 'contract_type',
+                'working_start_date', 'contract_end_date', 'contract_type', 'status',
                 'department_id', 'location_id',
                 'check_biometrics', 'send_reminders',
                 'allow_remote_checkin', 'allow_any_location_checkin',
-                'work_shift_id',
-            ]),
+                'work_shift_id', 'device_name',
+            ]) + ['has_registered_device' => $employee->device_fingerprint !== null],
             'options' => $this->formOptions(),
         ]);
     }
@@ -138,6 +149,20 @@ class EmployeeController extends Controller
         $employee->update($request->validated());
 
         return redirect()->route('employees.index')->with('success', 'Employee updated successfully.');
+    }
+
+    /**
+     * Unbinds the employee's registered phone so the next OTP login registers a new one,
+     * and revokes every mobile token so the old phone is signed out immediately.
+     */
+    public function resetDevice(Request $request, Employee $employee): RedirectResponse
+    {
+        $this->authorizesTenantAccess($request, $employee->tenant_id, PermissionModule::Employees, PermissionAction::Edit);
+
+        $employee->update(['device_fingerprint' => null, 'device_name' => null]);
+        $employee->tokens()->delete();
+
+        return back()->with('success', 'Device reset. The employee can now log in from a new phone.');
     }
 
     public function destroy(Request $request, Employee $employee): RedirectResponse
@@ -399,7 +424,11 @@ class EmployeeController extends Controller
     /** @return array<string, mixed> */
     private function formOptions(): array
     {
-        $tenantId = request()->user()->current_tenant_id;
+        $user = request()->user();
+        $tenantId = $user->current_tenant_id;
+        $tenant = Tenant::findOrFail($tenantId);
+        $deptIds = $user->accessibleDepartmentIds($tenant);
+        $locIds = $user->accessibleLocationIds($tenant);
 
         $workShifts = WorkShift::query()
             ->where('tenant_id', $tenantId)
@@ -419,6 +448,7 @@ class EmployeeController extends Controller
             'genders' => collect(Gender::cases())->map(fn ($e) => ['value' => $e->value, 'label' => $e->label()]),
             'marital_statuses' => collect(MaritalStatus::cases())->map(fn ($e) => ['value' => $e->value, 'label' => $e->label()]),
             'contract_types' => collect(ContractType::cases())->map(fn ($e) => ['value' => $e->value, 'label' => $e->label()]),
+            'statuses' => collect(EmployeeStatus::cases())->map(fn ($e) => ['value' => $e->value, 'label' => $e->label()]),
             'religions' => [
                 ['value' => 'muslim', 'label' => 'Muslim'],
                 ['value' => 'christian', 'label' => 'Christian'],
@@ -427,8 +457,12 @@ class EmployeeController extends Controller
                 ['value' => 'buddhist', 'label' => 'Buddhist'],
                 ['value' => 'other', 'label' => 'Other'],
             ],
-            'departments' => Department::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
-            'locations' => Location::where('tenant_id', $tenantId)->orderBy('name')->get(['id', 'name']),
+            'departments' => Department::where('tenant_id', $tenantId)
+                ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
+                ->orderBy('name')->get(['id', 'name']),
+            'locations' => Location::where('tenant_id', $tenantId)
+                ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
+                ->orderBy('name')->get(['id', 'name']),
             'work_shifts' => $workShifts,
         ];
     }

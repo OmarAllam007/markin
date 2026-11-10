@@ -59,6 +59,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('employees/import', [EmployeeController::class, 'importForm'])->name('employees.import');
     Route::post('employees/import', [EmployeeController::class, 'importStore'])->name('employees.import.store');
     Route::get('employees/import-template', [EmployeeController::class, 'importTemplate'])->name('employees.import.template');
+    Route::post('employees/{employee}/reset-device', [EmployeeController::class, 'resetDevice'])->name('employees.reset-device');
     Route::get('employees/{employee}/attendance', [AttendanceController::class, 'employeeHistory'])->name('employees.attendance.index');
     Route::post('attendances/{attendance}/approve', [AttendanceController::class, 'approve'])->name('attendances.approve');
     Route::post('attendances/{attendance}/lock', [AttendanceController::class, 'lock'])->name('attendances.lock');

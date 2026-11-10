@@ -61,6 +61,20 @@ class Employee extends Model implements AuthenticatableContract
         'allow_any_location_checkin' => false,
     ];
 
+    /**
+     * Signing out the phone is part of deactivating an employee, wherever the change comes from.
+     */
+    protected static function booted(): void
+    {
+        static::updated(function (Employee $employee): void {
+            if ($employee->wasChanged('status') && $employee->status !== EmployeeStatus::Active) {
+                $employee->tokens()->delete();
+            }
+        });
+
+        static::deleting(fn (Employee $employee) => $employee->tokens()->delete());
+    }
+
     protected function casts(): array
     {
         return [

@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Ticketing\Admin;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\Admin\StoreSubcategoryRequest;
 use App\Http\Requests\Ticketing\Admin\UpdateSubcategoryRequest;
+use App\Models\Tenant;
 use App\Models\TicketCategory;
 use App\Models\TicketSubcategory;
 use Illuminate\Http\RedirectResponse;
@@ -22,6 +25,8 @@ class SubcategoryController extends Controller
         ]);
 
         $tenantId = $request->user()->current_tenant_id;
+
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
 
         $subcategories = TicketSubcategory::query()
             ->where('tenant_id', $tenantId)
@@ -49,6 +54,8 @@ class SubcategoryController extends Controller
     {
         $tenantId = $request->user()->current_tenant_id;
 
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
+
         $categories = TicketCategory::query()
             ->where('tenant_id', $tenantId)
             ->where('is_active', true)
@@ -64,6 +71,8 @@ class SubcategoryController extends Controller
     {
         $tenantId = $request->user()->current_tenant_id;
 
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
+
         TicketSubcategory::create([
             ...$request->validated(),
             'tenant_id' => $tenantId,
@@ -78,7 +87,7 @@ class SubcategoryController extends Controller
     {
         $tenantId = $request->user()->current_tenant_id;
 
-        abort_if($subcategory->tenant_id !== $tenantId, 403);
+        $this->authorizeTicketAdmin($request, $subcategory->tenant_id, PermissionAction::Edit);
 
         $categories = TicketCategory::query()
             ->where('tenant_id', $tenantId)
@@ -94,7 +103,7 @@ class SubcategoryController extends Controller
 
     public function update(UpdateSubcategoryRequest $request, TicketSubcategory $subcategory): RedirectResponse
     {
-        abort_if($subcategory->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $subcategory->tenant_id, PermissionAction::Edit);
 
         $subcategory->update([
             ...$request->validated(),
@@ -107,11 +116,22 @@ class SubcategoryController extends Controller
 
     public function destroy(Request $request, TicketSubcategory $subcategory): RedirectResponse
     {
-        abort_if($subcategory->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $subcategory->tenant_id, PermissionAction::Delete);
 
         $subcategory->delete();
 
         return redirect()->route('ticketing.admin.subcategories.index')
             ->with('success', 'Subcategory deleted successfully.');
+    }
+
+    private function authorizeTicketAdmin(Request $request, ?int $tenantId, PermissionAction $action): void
+    {
+        abort_if($tenantId === null || $tenantId !== $request->user()->current_tenant_id, 403);
+
+        $tenant = Tenant::findOrFail($tenantId);
+
+        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
+        }
     }
 }

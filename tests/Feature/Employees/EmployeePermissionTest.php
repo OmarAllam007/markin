@@ -27,6 +27,7 @@ function employeePayload(): array
         'english_name' => 'Ahmed Ali',
         'mobile_country_code' => '+966',
         'mobile_number' => '500000001',
+        'status' => 'active',
     ];
 }
 

@@ -17,7 +17,7 @@ Route::get('/user', function (Request $request) {
     return $request->user();
 })->middleware('auth:sanctum');
 
-Route::middleware('auth:sanctum')->group(function () {
+Route::middleware(['auth:sanctum', 'api.employee.active'])->group(function () {
     Route::get('employee/me', EmployeeMeController::class)->name('api.employee.me');
     Route::post('employee/attendance/punch', [AttendancePunchController::class, 'store'])->name('api.employee.attendance.punch');
     Route::get('employee/location/check', [LocationCheckController::class, 'check'])->name('api.employee.location.check');

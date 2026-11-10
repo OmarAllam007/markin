@@ -2,10 +2,13 @@
 
 namespace App\Http\Controllers\Ticketing;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Enums\TicketApprovalAction;
 use App\Enums\TicketStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\StoreTicketApprovalRequest;
+use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketApproval;
 use Illuminate\Http\RedirectResponse;
@@ -16,6 +19,12 @@ class TicketApprovalController extends Controller
     public function store(StoreTicketApprovalRequest $request, Ticket $ticket): RedirectResponse
     {
         abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
+
+        $tenant = Tenant::findOrFail($ticket->tenant_id);
+
+        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, PermissionAction::Edit)) {
+            abort(403, 'You do not have permission to perform this action.');
+        }
 
         $action = TicketApprovalAction::from($request->validated('action'));
 

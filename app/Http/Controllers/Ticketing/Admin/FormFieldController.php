@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\Ticketing\Admin;
 
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use App\Enums\TicketType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\Admin\StoreFormFieldRequest;
+use App\Models\Tenant;
 use App\Models\TicketTypeCustomField;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -16,6 +19,8 @@ class FormFieldController extends Controller
     public function index(Request $request): Response
     {
         $tenantId = $request->user()->current_tenant_id;
+
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
 
         $customCounts = TicketTypeCustomField::query()
             ->where('tenant_id', $tenantId)
@@ -40,6 +45,8 @@ class FormFieldController extends Controller
         $ticketType = TicketType::from($type);
         $tenantId = $request->user()->current_tenant_id;
 
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
+
         $customFields = TicketTypeCustomField::query()
             ->where('tenant_id', $tenantId)
             ->where('ticket_type', $type)
@@ -58,6 +65,8 @@ class FormFieldController extends Controller
         $ticketType = TicketType::from($type);
         $tenantId = $request->user()->current_tenant_id;
 
+        $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
+
         TicketTypeCustomField::create([
             ...$request->validated(),
             'tenant_id' => $tenantId,
@@ -70,11 +79,22 @@ class FormFieldController extends Controller
 
     public function destroy(Request $request, string $type, TicketTypeCustomField $field): RedirectResponse
     {
-        abort_if($field->tenant_id !== $request->user()->current_tenant_id, 403);
+        $this->authorizeTicketAdmin($request, $field->tenant_id, PermissionAction::Delete);
 
         $field->delete();
 
         return redirect()->route('ticketing.admin.form-fields.show', $type)
             ->with('success', 'Custom field removed.');
+    }
+
+    private function authorizeTicketAdmin(Request $request, ?int $tenantId, PermissionAction $action): void
+    {
+        abort_if($tenantId === null || $tenantId !== $request->user()->current_tenant_id, 403);
+
+        $tenant = Tenant::findOrFail($tenantId);
+
+        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, $action)) {
+            abort(403, 'You do not have permission to perform this action.');
+        }
     }
 }
