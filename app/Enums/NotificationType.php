@@ -8,6 +8,8 @@ enum NotificationType: string
     case EarlyCheckOut = 'early_check_out';
     case MissingCheckout = 'missing_checkout';
     case Absent = 'absent';
+    case LeaveApproved = 'leave_approved';
+    case LeaveRejected = 'leave_rejected';
 
     public function label(): string
     {
@@ -16,6 +18,8 @@ enum NotificationType: string
             self::EarlyCheckOut => 'Early Check-out',
             self::MissingCheckout => 'Missing Check-out',
             self::Absent => 'Absent',
+            self::LeaveApproved => 'Leave Approved',
+            self::LeaveRejected => 'Leave Rejected',
         };
     }
 }

@@ -5,8 +5,10 @@ namespace App\Services;
 use App\Enums\AttendanceSource;
 use App\Enums\AttendanceStatus;
 use App\Enums\LeaveRequestStatus;
+use App\Enums\NotificationType;
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\EmployeeNotification;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\User;
@@ -80,7 +82,11 @@ class LeaveService
                 'reviewed_at' => now(),
             ]);
 
-            return $this->applyToAttendances($request);
+            $days = $this->applyToAttendances($request);
+
+            $this->notify($request, NotificationType::LeaveApproved);
+
+            return $days;
         });
     }
 
@@ -98,8 +104,35 @@ class LeaveService
                 'review_note' => $note,
             ]);
 
+            $this->notify($request, NotificationType::LeaveRejected);
+
             return $reverted;
         });
+    }
+
+    /**
+     * Writing the row is all it takes — the model pushes it to the phone.
+     */
+    private function notify(LeaveRequest $request, NotificationType $type): void
+    {
+        $request->loadMissing('leaveType:id,name');
+        $approved = $type === NotificationType::LeaveApproved;
+
+        EmployeeNotification::create([
+            'tenant_id' => $request->tenant_id,
+            'employee_id' => $request->employee_id,
+            'type' => $type,
+            'title' => $approved ? 'Leave approved' : 'Leave rejected',
+            'body' => sprintf(
+                '%s from %s to %s was %s.%s',
+                $request->leaveType?->name ?? 'Leave',
+                $request->start_date->toDateString(),
+                $request->end_date->toDateString(),
+                $approved ? 'approved' : 'rejected',
+                $request->review_note ? ' '.$request->review_note : ''
+            ),
+            'data' => ['leave_request_id' => $request->id],
+        ]);
     }
 
     /**

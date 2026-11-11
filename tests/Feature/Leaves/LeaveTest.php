@@ -3,13 +3,16 @@
 use App\Enums\AttendanceSource;
 use App\Enums\AttendanceStatus;
 use App\Enums\LeaveRequestStatus;
+use App\Enums\NotificationType;
 use App\Models\Attendance;
 use App\Models\Employee;
+use App\Models\EmployeeNotification;
 use App\Models\LeaveRequest;
 use App\Models\LeaveType;
 use App\Models\Tenant;
 use App\Models\User;
 use App\Models\WorkShift;
+use App\Services\LeaveService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
@@ -225,4 +228,52 @@ it('deactivates a used leave type instead of deleting it', function () {
     $this->actingAs($admin)->delete(route('leave-types.destroy', $type))->assertRedirect();
 
     expect($type->fresh()->is_active)->toBeFalse();
+});
+
+// ── the employee hears back ──────────────────────────────────────────────────
+
+it('notifies the employee when a leave is approved', function () {
+    [$tenant, $admin, $employee, $type] = leaveSetup();
+    $monday = nextMonday();
+
+    $request = LeaveRequest::create([
+        'tenant_id' => $tenant->id,
+        'employee_id' => $employee->id,
+        'leave_type_id' => $type->id,
+        'start_date' => $monday,
+        'end_date' => $monday->addDay(),
+        'days' => 2,
+        'status' => LeaveRequestStatus::Pending,
+    ]);
+
+    app(LeaveService::class)->approve($request, $admin);
+
+    $notification = EmployeeNotification::where('employee_id', $employee->id)->sole();
+
+    expect($notification->type)->toBe(NotificationType::LeaveApproved)
+        ->and($notification->body)->toContain('Annual')
+        ->and($notification->body)->toContain($monday->toDateString())
+        ->and($notification->data['leave_request_id'])->toBe($request->id);
+});
+
+it('tells the employee why a leave was rejected', function () {
+    [$tenant, $admin, $employee, $type] = leaveSetup();
+    $monday = nextMonday();
+
+    $request = LeaveRequest::create([
+        'tenant_id' => $tenant->id,
+        'employee_id' => $employee->id,
+        'leave_type_id' => $type->id,
+        'start_date' => $monday,
+        'end_date' => $monday,
+        'days' => 1,
+        'status' => LeaveRequestStatus::Pending,
+    ]);
+
+    app(LeaveService::class)->reject($request, $admin, 'Two people are already off that week.');
+
+    $notification = EmployeeNotification::where('employee_id', $employee->id)->sole();
+
+    expect($notification->type)->toBe(NotificationType::LeaveRejected)
+        ->and($notification->body)->toContain('Two people are already off');
 });

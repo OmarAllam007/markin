@@ -8,6 +8,7 @@ use App\Http\Controllers\Api\EmployeeMeController;
 use App\Http\Controllers\Api\EmployeeNotificationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LocationCheckController;
+use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\Ticketing\TicketCategoryController;
 use App\Http\Controllers\Api\Ticketing\TicketCategoryFormController;
 use App\Http\Controllers\ZkPushController;
@@ -32,6 +33,8 @@ Route::middleware(['auth:sanctum', 'api.employee.active'])->group(function () {
         Route::get('/', [LeaveController::class, 'index'])->name('index');
         Route::post('/', [LeaveController::class, 'store'])->name('store');
     });
+
+    Route::post('employee/push-token', [PushTokenController::class, 'store'])->name('api.employee.push-token.store');
 
     Route::prefix('employee/notifications')->name('api.employee.notifications.')->group(function () {
         Route::get('/', [EmployeeNotificationController::class, 'index'])->name('index');

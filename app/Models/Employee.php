@@ -42,6 +42,8 @@ use Laravel\Sanctum\HasApiTokens;
     'location_id',
     'check_biometrics',
     'send_reminders',
+    'push_token',
+    'push_token_updated_at',
     'allow_remote_checkin',
     'allow_any_location_checkin',
     'work_shift_id',

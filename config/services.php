@@ -40,6 +40,15 @@ return [
         ],
     ],
 
+    /*
+     * ponytail: push is wired but silent until a Firebase project exists.
+     * Point FCM_CREDENTIALS at the service-account JSON and flip PUSH_ENABLED.
+     */
+    'fcm' => [
+        'enabled' => (bool) env('PUSH_ENABLED', false),
+        'credentials' => env('FCM_CREDENTIALS'),
+    ],
+
     'demo' => [
         'notify' => env('DEMO_NOTIFY_EMAIL'),
     ],

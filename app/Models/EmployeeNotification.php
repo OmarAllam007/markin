@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\NotificationType;
+use App\Jobs\SendEmployeePush;
 use Database\Factories\EmployeeNotificationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Builder;
@@ -23,6 +24,17 @@ class EmployeeNotification extends Model
 {
     /** @use HasFactory<EmployeeNotificationFactory> */
     use HasFactory;
+
+    /**
+     * Every notification row is a push, wherever it was written from — so a new
+     * notification type needs no push wiring of its own.
+     */
+    protected static function booted(): void
+    {
+        static::created(function (EmployeeNotification $notification): void {
+            SendEmployeePush::dispatch($notification->id);
+        });
+    }
 
     protected function casts(): array
     {
