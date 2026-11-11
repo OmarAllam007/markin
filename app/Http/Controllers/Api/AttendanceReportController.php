@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\AttendanceStatus;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\AttendanceReportRequest;
@@ -32,7 +33,10 @@ class AttendanceReportController extends Controller
             ->paginate(31)
             ->withQueryString();
 
-        return ApiResponse::success('Attendance report retrieved.', $attendances);
+        return ApiResponse::success('Attendance report retrieved.', [
+            'summary' => $this->summary($employee, $from, $to),
+            'records' => $attendances,
+        ]);
     }
 
     public function missing(AttendanceReportRequest $request): JsonResponse
@@ -94,6 +98,41 @@ class AttendanceReportController extends Controller
             'total_missing' => count($missingRecords),
             'records' => $missingRecords,
         ]);
+    }
+
+    /**
+     * Totals for the whole range, not just the current page.
+     *
+     * @return array<string, mixed>
+     */
+    private function summary(Employee $employee, CarbonImmutable $from, CarbonImmutable $to): array
+    {
+        $row = Attendance::query()
+            ->where('employee_id', $employee->id)
+            ->whereDate('attendance_date', '>=', $from->toDateString())
+            ->whereDate('attendance_date', '<=', $to->toDateString())
+            ->selectRaw('count(*) as days')
+            ->selectRaw('coalesce(sum(worked_minutes), 0) as worked_minutes')
+            ->selectRaw('coalesce(sum(total_late_minutes), 0) as late_minutes')
+            ->selectRaw('coalesce(sum(overtime_minutes), 0) as overtime_minutes')
+            ->selectRaw('sum(case when status = ? then 1 else 0 end) as present_days', [AttendanceStatus::Present->value])
+            ->selectRaw('sum(case when status = ? then 1 else 0 end) as late_days', [AttendanceStatus::Late->value])
+            ->selectRaw('sum(case when status = ? then 1 else 0 end) as absent_days', [AttendanceStatus::Absent->value])
+            ->selectRaw('sum(case when status = ? then 1 else 0 end) as leave_days', [AttendanceStatus::Leave->value])
+            ->first();
+
+        return [
+            'from' => $from->toDateString(),
+            'to' => $to->toDateString(),
+            'days' => (int) $row->days,
+            'present_days' => (int) $row->present_days,
+            'late_days' => (int) $row->late_days,
+            'absent_days' => (int) $row->absent_days,
+            'leave_days' => (int) $row->leave_days,
+            'worked_minutes' => (int) $row->worked_minutes,
+            'late_minutes' => (int) $row->late_minutes,
+            'overtime_minutes' => (int) $row->overtime_minutes,
+        ];
     }
 
     /**

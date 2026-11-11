@@ -27,7 +27,7 @@ it('returns paginated attendance records for the authenticated employee', functi
     $this->actingAs($employee, 'sanctum')
         ->getJson(route('api.employee.attendance.index'))
         ->assertOk()
-        ->assertJsonPath('data.total', 3);
+        ->assertJsonPath('data.records.total', 3);
 });
 
 it('does not return another employee attendance records', function () {
@@ -43,7 +43,7 @@ it('does not return another employee attendance records', function () {
     $this->actingAs($employee, 'sanctum')
         ->getJson(route('api.employee.attendance.index'))
         ->assertOk()
-        ->assertJsonPath('data.total', 0);
+        ->assertJsonPath('data.records.total', 0);
 });
 
 it('filters attendance records by date range', function () {
@@ -63,7 +63,7 @@ it('filters attendance records by date range', function () {
     $this->actingAs($employee, 'sanctum')
         ->getJson(route('api.employee.attendance.index', ['date_from' => '2026-05-01', 'date_to' => '2026-05-31']))
         ->assertOk()
-        ->assertJsonPath('data.total', 1);
+        ->assertJsonPath('data.records.total', 1);
 });
 
 // ── missing records report ────────────────────────────────────────────────────
@@ -151,4 +151,52 @@ it('identifies missing checkout records', function () {
     expect(collect($records)->firstWhere('type', 'missing_checkout'))->not->toBeNull();
 
     Carbon::setTestNow();
+});
+
+// ── monthly summary ──────────────────────────────────────────────────────────
+
+it('sums the whole range, not just the current page', function () {
+    $employee = Employee::factory()->create();
+
+    $rows = [
+        ['status' => 'present', 'worked_minutes' => 480, 'total_late_minutes' => 0],
+        ['status' => 'late', 'worked_minutes' => 450, 'total_late_minutes' => 30],
+        ['status' => 'late', 'worked_minutes' => 460, 'total_late_minutes' => 20],
+        ['status' => 'absent', 'worked_minutes' => 0, 'total_late_minutes' => 0],
+        ['status' => 'leave', 'worked_minutes' => 0, 'total_late_minutes' => 0],
+    ];
+
+    foreach ($rows as $i => $row) {
+        Attendance::factory()->create($row + [
+            'employee_id' => $employee->id,
+            'tenant_id' => $employee->tenant_id,
+            'attendance_date' => '2026-05-'.str_pad((string) ($i + 1), 2, '0', STR_PAD_LEFT),
+        ]);
+    }
+
+    $summary = $this->actingAs($employee, 'sanctum')
+        ->getJson(route('api.employee.attendance.index', ['date_from' => '2026-05-01', 'date_to' => '2026-05-31']))
+        ->assertOk()
+        ->json('data.summary');
+
+    expect($summary)->toMatchArray([
+        'days' => 5,
+        'present_days' => 1,
+        'late_days' => 2,
+        'absent_days' => 1,
+        'leave_days' => 1,
+        'worked_minutes' => 1390,
+        'late_minutes' => 50,
+    ]);
+});
+
+it('returns a zero summary when the range is empty', function () {
+    $employee = Employee::factory()->create();
+
+    $summary = $this->actingAs($employee, 'sanctum')
+        ->getJson(route('api.employee.attendance.index', ['date_from' => '2026-05-01', 'date_to' => '2026-05-31']))
+        ->assertOk()
+        ->json('data.summary');
+
+    expect($summary)->toMatchArray(['days' => 0, 'worked_minutes' => 0, 'late_minutes' => 0]);
 });
