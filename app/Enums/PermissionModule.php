@@ -14,6 +14,7 @@ enum PermissionModule: string
     case GeneralSettings = 'general_settings';
     case AdminUsers = 'admin_users';
     case Ticketing = 'ticketing';
+    case Leaves = 'leaves';
 
     public function label(): string
     {
@@ -28,6 +29,7 @@ enum PermissionModule: string
             self::GeneralSettings => 'General Settings',
             self::AdminUsers => 'Admin Users',
             self::Ticketing => 'Ticketing',
+            self::Leaves => 'Leaves',
         };
     }
 
@@ -45,6 +47,7 @@ enum PermissionModule: string
             self::GeneralSettings => [PermissionAction::Edit],
             self::AdminUsers => [PermissionAction::Create, PermissionAction::Edit, PermissionAction::Delete],
             self::Ticketing => [PermissionAction::Create, PermissionAction::Edit, PermissionAction::View, PermissionAction::Delete],
+            self::Leaves => [PermissionAction::Create, PermissionAction::Edit, PermissionAction::View, PermissionAction::Delete],
         };
     }
 }

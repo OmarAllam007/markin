@@ -4,60 +4,66 @@ use App\Models\Tenant;
 use App\Models\User;
 use Illuminate\Auth\Notifications\VerifyEmail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Queue\CallQueuedClosure;
 use Illuminate\Support\Facades\Notification;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\URL;
 
 uses(RefreshDatabase::class);
 
-it('shows the register page', function () {
-    $this->get(route('register'))->assertOk();
+it('no longer exposes a public register route', function () {
+    expect(Route::has('register'))->toBeFalse();
+
+    $this->get('/register')->assertNotFound();
 });
 
-it('creates a new tenant and user, logs in, and sends a verification email', function () {
-    Notification::fake();
+it('shows the book-a-demo page', function () {
+    $this->get(route('demo'))->assertOk();
+});
 
-    $this->post(route('register'), [
+it('stores a demo request and notifies sales', function () {
+    Queue::fake();
+    config(['services.demo.notify' => 'sales@markin.app']);
+
+    $this->post(route('demo'), [
         'company_name' => 'Acme Corp',
         'number_of_employees' => 25,
         'name' => 'Jane Doe',
-        'country_code' => '+1',
-        'mobile' => '2025550100',
+        'country_code' => '+966',
+        'mobile' => '512345678',
         'email' => 'jane@acme.com',
-        'password' => 'Password1!',
-        'password_confirmation' => 'Password1!',
-    ])->assertRedirect(route('verification.notice'));
+        'message' => 'Three branches, two shifts.',
+    ])->assertRedirect()->assertSessionHas('success');
+
+    $this->assertDatabaseHas('demo_requests', ['company_name' => 'Acme Corp', 'email' => 'jane@acme.com']);
+    Queue::assertPushed(CallQueuedClosure::class);
+});
+
+it('rejects a demo request without a contact', function () {
+    $this->post(route('demo'), ['company_name' => 'Acme Corp'])
+        ->assertSessionHasErrors(['name', 'mobile', 'email']);
+
+    $this->assertDatabaseCount('demo_requests', 0);
+});
+
+it('creates a tenant and admin from the console after a demo', function () {
+    $this->artisan('tenant:create', [
+        '--company' => 'Acme Corp',
+        '--employees' => 25,
+        '--name' => 'Jane Doe',
+        '--country-code' => '+966',
+        '--mobile' => '512345678',
+        '--email' => 'jane@acme.com',
+        '--password' => 'Password1!',
+    ])->assertSuccessful();
 
     $this->assertDatabaseHas('tenants', ['name' => 'Acme Corp', 'number_of_employees' => 25]);
 
     $user = User::query()->where('email', 'jane@acme.com')->first();
     expect($user)->not->toBeNull();
     expect($user->tenants()->where('tenants.name', 'Acme Corp')->exists())->toBeTrue();
-    expect(Auth::check())->toBeTrue();
-    expect($user->hasVerifiedEmail())->toBeFalse();
-
-    Notification::assertSentTo($user, VerifyEmail::class);
-});
-
-it('joins an existing tenant by company name and creates the user', function () {
-    $tenant = Tenant::factory()->create(['name' => 'Existing Co', 'number_of_employees' => 5]);
-
-    $this->post(route('register'), [
-        'company_name' => 'Existing Co',
-        'number_of_employees' => 999,
-        'name' => 'New Hire',
-        'country_code' => '+44',
-        'mobile' => '7700900123',
-        'email' => 'hire@example.com',
-        'password' => 'Password1!',
-        'password_confirmation' => 'Password1!',
-    ])->assertRedirect(route('verification.notice'));
-
-    $user = User::query()->where('email', 'hire@example.com')->first();
-    expect($user->tenants()->where('tenants.id', $tenant->id)->exists())->toBeTrue();
-
-    $tenant->refresh();
-    expect($tenant->number_of_employees)->toBe(5);
+    expect($user->hasVerifiedEmail())->toBeTrue();
 });
 
 it('blocks an unverified user from the main app and sends them to the verification notice', function () {

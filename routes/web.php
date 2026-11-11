@@ -7,12 +7,14 @@ use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
 use App\Http\Controllers\Auth\NewPasswordController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
-use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\VerifyEmailController;
 use App\Http\Controllers\DashboardController;
+use App\Http\Controllers\DemoRequestController;
 use App\Http\Controllers\DepartmentController;
 use App\Http\Controllers\EmployeeController;
 use App\Http\Controllers\HolidayController;
+use App\Http\Controllers\LeaveRequestController;
+use App\Http\Controllers\LeaveTypeController;
 use App\Http\Controllers\LocationController;
 use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\ReportController;
@@ -29,8 +31,9 @@ Route::get('/', DashboardController::class)->middleware(['auth', 'verified'])->n
 Route::middleware('guest')->group(function () {
     Route::get('login', [AuthenticatedSessionController::class, 'create'])->name('login');
     Route::post('login', [AuthenticatedSessionController::class, 'store']);
-    Route::get('register', [RegisteredUserController::class, 'create'])->name('register');
-    Route::post('register', [RegisteredUserController::class, 'store']);
+    // ponytail: self-service signup is closed — companies come in through a demo call.
+    Route::get('demo', [DemoRequestController::class, 'create'])->name('demo');
+    Route::post('demo', [DemoRequestController::class, 'store'])->middleware('throttle:5,10');
     Route::get('forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])->name('password.reset');
@@ -67,6 +70,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::resource('attendances', AttendanceController::class);
     Route::resource('announcements', AnnouncementController::class)->only(['index', 'create', 'store', 'show', 'destroy']);
     Route::resource('holidays', HolidayController::class)->except(['show']);
+    Route::resource('leave-types', LeaveTypeController::class)->except(['show']);
+    Route::get('leaves', [LeaveRequestController::class, 'index'])->name('leaves.index');
+    Route::post('leaves/{leaveRequest}/approve', [LeaveRequestController::class, 'approve'])->name('leaves.approve');
+    Route::post('leaves/{leaveRequest}/reject', [LeaveRequestController::class, 'reject'])->name('leaves.reject');
     Route::resource('zk-machines', ZkMachineController::class)->except(['show']);
     Route::post('tenant/switch', [TenantController::class, 'switch'])->name('tenant.switch');
     Route::post('tenants', [TenantController::class, 'store'])->name('tenants.store');

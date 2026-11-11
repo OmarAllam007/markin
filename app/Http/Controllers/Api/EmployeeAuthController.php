@@ -7,8 +7,10 @@ use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\RequestEmployeeOtpRequest;
 use App\Http\Requests\Api\VerifyEmployeeOtpRequest;
+use App\Jobs\SendEmployeeOtpSms;
 use App\Mail\EmployeeOtpMail;
 use App\Models\Employee;
+use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
 use Illuminate\Support\Facades\RateLimiter;
@@ -59,10 +61,6 @@ class EmployeeAuthController extends Controller
 
         $employee = $activeEmployees->first();
 
-        if (! $employee->email) {
-            return ApiResponse::error('No email is registered for this account. Please contact your administrator.', null, 422);
-        }
-
         $code = str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
         $verificationToken = Str::uuid()->toString();
 
@@ -72,12 +70,34 @@ class EmployeeAuthController extends Controller
             'code' => $code,
         ], self::OTP_TTL_SECONDS);
 
-        // ponytail: OTP sent by email for now, not SMS — swap for an SMS provider before launch
-        Mail::to($employee->email)->send(new EmployeeOtpMail($employee, $code));
+        if ($failure = $this->sendCode($employee, $code)) {
+            Cache::forget("otp:token:{$verificationToken}");
+
+            return $failure;
+        }
 
         return ApiResponse::success('OTP sent successfully.', [
             'verification_token' => $verificationToken,
         ]);
+    }
+
+    /** Sends the code on the configured channel. Returns an error response when it can't be delivered. */
+    private function sendCode(Employee $employee, string $code): ?JsonResponse
+    {
+        // ponytail: SMS is wired but off until a provider is bought — OTP_CHANNEL=sms + OTP_SMS_URL turn it on.
+        if (config('services.otp.channel') === 'sms' && config('services.otp.sms.url')) {
+            SendEmployeeOtpSms::dispatch($employee->mobile_country_code.$employee->mobile_number, $code);
+
+            return null;
+        }
+
+        if (! $employee->email) {
+            return ApiResponse::error('No email is registered for this account. Please contact your administrator.', null, 422);
+        }
+
+        Mail::to($employee->email)->send(new EmployeeOtpMail($employee, $code));
+
+        return null;
     }
 
     public function verifyOtp(VerifyEmployeeOtpRequest $request)

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\AttendanceReportController;
 use App\Http\Controllers\Api\EmployeeAuthController;
 use App\Http\Controllers\Api\EmployeeMeController;
 use App\Http\Controllers\Api\EmployeeNotificationController;
+use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LocationCheckController;
 use App\Http\Controllers\Api\Ticketing\TicketCategoryController;
 use App\Http\Controllers\Api\Ticketing\TicketCategoryFormController;
@@ -25,6 +26,11 @@ Route::middleware(['auth:sanctum', 'api.employee.active'])->group(function () {
     Route::prefix('employee/attendance')->name('api.employee.attendance.')->group(function () {
         Route::get('/', [AttendanceReportController::class, 'index'])->name('index');
         Route::get('/missing', [AttendanceReportController::class, 'missing'])->name('missing');
+    });
+
+    Route::prefix('employee/leaves')->name('api.employee.leaves.')->group(function () {
+        Route::get('/', [LeaveController::class, 'index'])->name('index');
+        Route::post('/', [LeaveController::class, 'store'])->name('store');
     });
 
     Route::prefix('employee/notifications')->name('api.employee.notifications.')->group(function () {

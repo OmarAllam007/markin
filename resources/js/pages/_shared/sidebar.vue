@@ -8,6 +8,8 @@ import { index as employeesIndex } from '@/routes/employees';
 import { index as workShiftsIndex } from '@/routes/work-shifts';
 import { index as attendancesIndex } from '@/routes/attendances';
 import { index as holidaysIndex } from '@/routes/holidays/index';
+import { index as leaveTypesIndex } from '@/routes/leave-types/index';
+import { index as leavesIndex } from '@/routes/leaves/index';
 import { index as reportsIndex } from '@/routes/reports/index';
 import { index as zkMachinesIndex } from '@/routes/zk-machines/index';
 import { index as ticketsIndex } from '@/routes/ticketing/tickets/index';
@@ -57,12 +59,14 @@ const sections = computed(() => [
         { label: 'Employees', href: employeesIndex.url(), icon: 'users' },
         { label: 'Attendance', href: attendancesIndex.url(), icon: 'clock' },
         { label: 'Reports', href: reportsIndex.url(), icon: 'chart' },
+        { label: 'Leave requests', href: leavesIndex.url(), icon: 'form' },
     ] },
     { title: 'Organization', links: [
         { label: 'Departments', href: departmentsIndex.url(), icon: 'building' },
         { label: 'Locations', href: locationsIndex.url(), icon: 'pin' },
         { label: 'Work shifts', href: workShiftsIndex.url(), icon: 'shift' },
         { label: 'Holidays', href: holidaysIndex.url(), icon: 'calendar' },
+        { label: 'Leave types', href: leaveTypesIndex.url(), icon: 'folder' },
         { label: 'Users', href: usersIndex.url(), icon: 'users' },
         { label: 'Devices', href: zkMachinesIndex.url(), icon: 'device' },
     ] },

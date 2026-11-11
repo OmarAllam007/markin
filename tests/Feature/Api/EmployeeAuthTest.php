@@ -1,10 +1,12 @@
 <?php
 
+use App\Jobs\SendEmployeeOtpSms;
 use App\Mail\EmployeeOtpMail;
 use App\Models\Employee;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Mail;
+use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Str;
 
 uses(RefreshDatabase::class);
@@ -298,4 +300,46 @@ it('keeps an android device registered via android_id working when the app switc
         'otp' => '123456',
         'device' => $newPayload,
     ])->assertOk();
+});
+
+// ── OTP channel ─────────────────────────────────────────────────────────────
+
+it('queues an sms instead of a mail when the sms channel is configured', function () {
+    Queue::fake();
+    Mail::fake();
+    config(['services.otp.channel' => 'sms', 'services.otp.sms.url' => 'https://sms.test/send']);
+
+    $employee = Employee::factory()->create([
+        'mobile_country_code' => '+966',
+        'mobile_number' => '512345678',
+        'email' => null,
+    ]);
+
+    $this->postJson('/api/employee/auth/request-otp', [
+        'country_code' => '+966',
+        'mobile_number' => '512345678',
+    ])->assertOk();
+
+    Mail::assertNothingSent();
+    Queue::assertPushed(SendEmployeeOtpSms::class, fn ($job) => $job->mobile === '+966512345678');
+});
+
+it('falls back to mail while no sms provider is configured', function () {
+    Queue::fake();
+    Mail::fake();
+    config(['services.otp.channel' => 'sms', 'services.otp.sms.url' => null]);
+
+    $employee = Employee::factory()->create([
+        'mobile_country_code' => '+966',
+        'mobile_number' => '512345679',
+        'email' => 'e@example.com',
+    ]);
+
+    $this->postJson('/api/employee/auth/request-otp', [
+        'country_code' => '+966',
+        'mobile_number' => '512345679',
+    ])->assertOk();
+
+    Queue::assertNothingPushed();
+    Mail::assertQueued(EmployeeOtpMail::class);
 });

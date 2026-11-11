@@ -3,7 +3,7 @@ import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed, onMounted, ref } from 'vue';
 
 import { store as loginStore } from '@/actions/App/Http/Controllers/Auth/AuthenticatedSessionController';
-import { register } from '@/routes/index';
+import { demo } from '@/routes/index';
 import { create as forgotPassword } from '@/actions/App/Http/Controllers/Auth/PasswordResetLinkController';
 
 type Language = 'en' | 'ar';
@@ -39,7 +39,7 @@ const copy = {
         submit: 'Sign in',
         forgotPassword: 'Forgot password?',
         newToMarkin: 'New to Markin?',
-        createWorkspace: 'Create a workspace',
+        createWorkspace: 'Book a demo',
         encrypted: 'Protected with encrypted data transfer',
         language: 'Language',
     },
@@ -69,7 +69,7 @@ const copy = {
         submit: 'تسجيل الدخول',
         forgotPassword: 'نسيت كلمة المرور؟',
         newToMarkin: 'جديد في ماركن؟',
-        createWorkspace: 'أنشئ مساحة عمل',
+        createWorkspace: 'احجز ديمو',
         encrypted: 'نقل بيانات مشفّر ومحمي',
         language: 'اللغة',
     },
@@ -271,7 +271,7 @@ const submit = () => form.post(loginStore.url());
 
                     <p class="register-prompt">
                         {{ text.newToMarkin }}
-                        <Link :href="register.url()">{{
+                        <Link :href="demo.url()">{{
                             text.createWorkspace
                         }}</Link>
                     </p>

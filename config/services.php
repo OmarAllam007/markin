@@ -28,6 +28,22 @@ return [
         'region' => env('AWS_DEFAULT_REGION', 'us-east-1'),
     ],
 
+    // ponytail: OTP goes out by mail until an SMS provider is bought.
+    // Set OTP_CHANNEL=sms + OTP_SMS_URL to switch it on; no provider SDK needed.
+    'otp' => [
+        'channel' => env('OTP_CHANNEL', 'mail'),
+        'sms' => [
+            'url' => env('OTP_SMS_URL'),
+            'token' => env('OTP_SMS_TOKEN'),
+            'sender' => env('OTP_SMS_SENDER'),
+            'template' => env('OTP_SMS_TEMPLATE', 'Markin login code: :code'),
+        ],
+    ],
+
+    'demo' => [
+        'notify' => env('DEMO_NOTIFY_EMAIL'),
+    ],
+
     'slack' => [
         'notifications' => [
             'bot_user_oauth_token' => env('SLACK_BOT_USER_OAUTH_TOKEN'),
