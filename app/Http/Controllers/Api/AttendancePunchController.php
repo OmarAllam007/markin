@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StorePunchRequest;
 use App\Models\Employee;
 use App\Services\AttendancePunchService;
+use App\Support\PunchIntegrity;
 use Illuminate\Http\JsonResponse;
 
 class AttendancePunchController extends Controller
@@ -31,6 +32,7 @@ class AttendancePunchController extends Controller
                 deviceName: $request->device_name,
                 confirmed: (bool) $request->input('confirmed', false),
                 reason: $request->reason,
+                integrity: PunchIntegrity::fromRequest($request),
             );
         } catch (EarlyCheckoutWarningException $e) {
             return ApiResponse::warning($e->getMessage(), [

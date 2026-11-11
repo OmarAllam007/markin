@@ -15,6 +15,7 @@ use App\Models\AttendancePunchLog;
 use App\Models\Employee;
 use App\Models\EmployeeNotification;
 use App\Models\Location;
+use App\Support\PunchIntegrity;
 use Carbon\Carbon;
 use Carbon\CarbonInterface;
 use Illuminate\Validation\ValidationException;
@@ -34,10 +35,13 @@ class AttendancePunchService
         ?string $deviceName = null,
         bool $confirmed = false,
         ?string $reason = null,
+        ?PunchIntegrity $integrity = null,
     ): AttendancePunch {
         $attemptedAt = now();
+        $integrity ??= new PunchIntegrity;
 
         try {
+            $this->validateIntegrity($employee, $integrity);
             $this->validateLocation($employee, $latitude, $longitude);
 
             $timezone = $this->tenantTimezone($employee);
@@ -70,6 +74,7 @@ class AttendancePunchService
                 'longitude' => $longitude,
                 'device_name' => $resolvedDeviceName,
                 'note' => $reason,
+                ...$integrity->toAttributes(),
             ]);
 
             $this->recomputeTotals($attendance, $timezone, $employee);
@@ -90,6 +95,7 @@ class AttendancePunchService
                 deviceName: $resolvedDeviceName,
                 userAgent: $userAgent,
                 attemptedAt: $attemptedAt,
+                integrity: $integrity,
             );
 
             return $punch;
@@ -106,6 +112,7 @@ class AttendancePunchService
                 deviceName: $deviceName ?? $employee->device_name,
                 userAgent: $userAgent,
                 attemptedAt: $attemptedAt,
+                integrity: $integrity,
             );
 
             throw $e;
@@ -244,6 +251,48 @@ class AttendancePunchService
             'location_name' => $location->name,
             'message' => 'You are not within the registered location.',
         ];
+    }
+
+    /**
+     * Reject what is provably fake; record what is only suspicious.
+     * A phone that admits to a mock provider is lying about where it is, and a
+     * 2km-wide fix proves nothing about standing inside a building.
+     */
+    private function validateIntegrity(Employee $employee, PunchIntegrity $integrity): void
+    {
+        // Remote workers are trusted by policy, so no coordinates means no GPS gate either.
+        if ($employee->allow_remote_checkin) {
+            return;
+        }
+
+        if ($integrity->isMocked && config('attendance.reject_mocked_location')) {
+            throw ValidationException::withMessages([
+                'location' => ['Your location is being faked by another app. Turn off any mock-location app and try again.'],
+            ]);
+        }
+
+        if ($integrity->isRooted && config('attendance.reject_rooted_devices')) {
+            throw ValidationException::withMessages([
+                'location' => ['Punching from a rooted or jailbroken device is not allowed.'],
+            ]);
+        }
+
+        if ($integrity->isEmulator && config('attendance.reject_emulators')) {
+            throw ValidationException::withMessages([
+                'location' => ['Punching from an emulator is not allowed.'],
+            ]);
+        }
+
+        $limit = (int) config('attendance.max_gps_accuracy_meters');
+
+        if ($limit > 0 && $integrity->gpsAccuracy !== null && $integrity->gpsAccuracy > $limit) {
+            throw ValidationException::withMessages([
+                'location' => [sprintf(
+                    'GPS signal is too weak (±%dm). Move to an open area and try again.',
+                    (int) round($integrity->gpsAccuracy)
+                )],
+            ]);
+        }
     }
 
     private function validateLocation(
@@ -517,8 +566,10 @@ class AttendancePunchService
         ?string $deviceName = null,
         ?string $userAgent = null,
         ?CarbonInterface $attemptedAt = null,
+        ?PunchIntegrity $integrity = null,
     ): void {
         AttendancePunchLog::create([
+            ...($integrity?->toAttributes() ?? []),
             'tenant_id' => $employee->tenant_id,
             'employee_id' => $employee->id,
             'source' => $source,

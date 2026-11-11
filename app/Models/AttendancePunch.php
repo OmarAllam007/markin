@@ -20,6 +20,10 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'longitude',
     'device_name',
     'note',
+    'gps_accuracy',
+    'is_mocked',
+    'is_rooted',
+    'is_emulator',
 ])]
 class AttendancePunch extends Model
 {
@@ -34,6 +38,10 @@ class AttendancePunch extends Model
             'punched_at' => 'datetime',
             'latitude' => 'decimal:7',
             'longitude' => 'decimal:7',
+            'gps_accuracy' => 'decimal:2',
+            'is_mocked' => 'boolean',
+            'is_rooted' => 'boolean',
+            'is_emulator' => 'boolean',
         ];
     }
 

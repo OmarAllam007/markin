@@ -55,6 +55,21 @@ const props = defineProps<{
         updater: UserLite;
         approver: UserLite;
     };
+    punches: {
+        id: number;
+        type: string;
+        punched_at: string;
+        source: string;
+        location: string | null;
+        latitude: string | null;
+        longitude: string | null;
+        gps_accuracy: string | null;
+        is_mocked: boolean;
+        is_rooted: boolean;
+        is_emulator: boolean;
+        device_name: string | null;
+        note: string | null;
+    }[];
     enumLabels: {
         status: Record<string, string>;
         attendance_source: Record<string, string>;
@@ -72,6 +87,14 @@ function formatHm(m: number): string {
     const mm = m % 60;
 
     return `${h}h ${mm}m`;
+}
+
+function punchTime(iso: string): string {
+    return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function mapsUrl(lat: string, lng: string): string {
+    return `https://www.google.com/maps?q=${lat},${lng}`;
 }
 
 function approve(): void {
@@ -220,6 +243,68 @@ function remove(): void {
                                             >
                                                 Download
                                             </a>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-5">
+                    <div class="card-header border-0">
+                        <h3 class="fw-bold fs-4">Punches</h3>
+                    </div>
+                    <div class="card-body pt-0">
+                        <div v-if="!punches.length" class="text-gray-500 fs-7">
+                            No individual punches recorded for this day.
+                        </div>
+                        <div v-else class="table-responsive">
+                            <table class="table table-row-dashed align-middle gs-0 gy-3 fs-7">
+                                <thead>
+                                    <tr class="text-gray-500 fw-semibold">
+                                        <th>Time</th>
+                                        <th>Type</th>
+                                        <th>Source</th>
+                                        <th>Where</th>
+                                        <th>Accuracy</th>
+                                        <th>Device</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="punch in punches" :key="punch.id">
+                                        <td class="fw-bold text-gray-800">{{ punchTime(punch.punched_at) }}</td>
+                                        <td>
+                                            <span
+                                                class="badge"
+                                                :class="punch.type === 'check_in' ? 'badge-light-success' : 'badge-light-primary'"
+                                            >
+                                                {{ punch.type === 'check_in' ? 'Check in' : 'Check out' }}
+                                            </span>
+                                        </td>
+                                        <td class="text-gray-600">{{ punch.source }}</td>
+                                        <td>
+                                            <a
+                                                v-if="punch.latitude && punch.longitude"
+                                                :href="mapsUrl(punch.latitude, punch.longitude)"
+                                                target="_blank"
+                                                rel="noopener"
+                                                class="link-primary"
+                                            >
+                                                {{ punch.location ?? 'On map' }}
+                                            </a>
+                                            <span v-else class="text-gray-500">—</span>
+                                        </td>
+                                        <td class="text-gray-600">
+                                            {{ punch.gps_accuracy ? `±${Math.round(Number(punch.gps_accuracy))}m` : '—' }}
+                                        </td>
+                                        <td>
+                                            <div class="text-gray-600">{{ punch.device_name ?? '—' }}</div>
+                                            <div class="d-flex flex-wrap gap-1 mt-1">
+                                                <span v-if="punch.is_mocked" class="badge badge-light-danger">Faked GPS</span>
+                                                <span v-if="punch.is_rooted" class="badge badge-light-warning">Rooted</span>
+                                                <span v-if="punch.is_emulator" class="badge badge-light-warning">Emulator</span>
+                                            </div>
                                         </td>
                                     </tr>
                                 </tbody>

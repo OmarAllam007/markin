@@ -272,10 +272,26 @@ class AttendanceController extends Controller
             'creator:id,name',
             'updater:id,name',
             'approver:id,name',
+            'punches' => fn ($q) => $q->with('location:id,name')->orderBy('punched_at'),
         ]);
 
         return Inertia::render('attendance/Show', [
             'attendance' => $this->transformAttendance($attendance),
+            'punches' => $attendance->punches->map(fn ($punch) => [
+                'id' => $punch->id,
+                'type' => $punch->type->value,
+                'punched_at' => $punch->punched_at->toIso8601String(),
+                'source' => $punch->source->value,
+                'location' => $punch->location?->name,
+                'latitude' => $punch->latitude,
+                'longitude' => $punch->longitude,
+                'gps_accuracy' => $punch->gps_accuracy,
+                'is_mocked' => $punch->is_mocked,
+                'is_rooted' => $punch->is_rooted,
+                'is_emulator' => $punch->is_emulator,
+                'device_name' => $punch->device_name,
+                'note' => $punch->note,
+            ])->all(),
             'enumLabels' => $this->enumLabels(),
             'abilities' => [
                 'update' => $request->user()->can('update', $attendance),

@@ -10,7 +10,6 @@ class TenantUser extends Pivot
     // @Todo: to understand
     public $incrementing = true;
 
-
     protected function casts(): array
     {
         return [

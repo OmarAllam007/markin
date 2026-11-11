@@ -24,6 +24,10 @@ class StorePunchRequest extends FormRequest
             'device_name' => ['nullable', 'string', 'max:255'],
             'confirmed' => ['boolean'],
             'reason' => ['nullable', 'string', 'max:500'],
+            'gps_accuracy' => ['nullable', 'numeric', 'min:0', 'max:100000'],
+            'is_mocked' => ['boolean'],
+            'is_rooted' => ['boolean'],
+            'is_emulator' => ['boolean'],
         ];
     }
 }
