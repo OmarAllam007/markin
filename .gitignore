@@ -25,3 +25,6 @@ yarn-error.log
 /.nova
 /.vscode
 /.zed
+
+# Firebase service account for FCM
+/storage/app/firebase/*.json

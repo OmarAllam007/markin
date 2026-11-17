@@ -89,6 +89,11 @@ class FcmSender
     {
         $path = config('services.fcm.credentials');
 
+        // A relative path is resolved against the app root, not the request's cwd.
+        if ($path && ! str_starts_with($path, '/')) {
+            $path = base_path($path);
+        }
+
         if (! $path || ! is_file($path)) {
             throw new RuntimeException('FCM_CREDENTIALS does not point at a service-account JSON file.');
         }

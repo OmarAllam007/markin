@@ -24,7 +24,20 @@ use App\Http\Controllers\TenantSettingsController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkShiftController;
 use App\Http\Controllers\ZkMachineController;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
+
+// Development convenience: skips the login screen in the browser.
+//
+// Scoped tightly, because this file is loaded on every request: in the console
+// it queries users before the test database is migrated and breaks the suite,
+// and on an API request Sanctum reads the session guard first, so this session
+// wins over the Bearer token and every employee endpoint sees a User.
+if (app()->environment('local')
+    && ! app()->runningInConsole()
+    && ! request()->is('api/*')) {
+    Auth::loginUsingId(1);
+}
 
 Route::get('/', DashboardController::class)->middleware(['auth', 'verified'])->name('home');
 

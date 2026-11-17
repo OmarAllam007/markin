@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Enums\PermissionAction;
 use App\Enums\PermissionModule;
 use App\Http\Requests\StoreAnnouncementRequest;
+use App\Jobs\SendAnnouncementPush;
 use App\Mail\AnnouncementMail;
 use App\Models\Announcement;
 use App\Models\Department;
@@ -164,6 +165,8 @@ class AnnouncementController extends Controller
         foreach ($employees->filter(fn (Employee $e) => ! empty($e->email)) as $employee) {
             Mail::to($employee->email)->queue(new AnnouncementMail($announcement, $employee));
         }
+
+        SendAnnouncementPush::dispatch($announcement->id, $employees->pluck('id')->all());
 
         return redirect()->route('announcements.index')
             ->with('success', "Announcement sent to {$recipientsCount} employee(s).");
