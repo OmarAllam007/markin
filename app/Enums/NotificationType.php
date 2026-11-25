@@ -10,6 +10,10 @@ enum NotificationType: string
     case Absent = 'absent';
     case LeaveApproved = 'leave_approved';
     case LeaveRejected = 'leave_rejected';
+    case TicketReply = 'ticket_reply';
+    case TicketStatusChanged = 'ticket_status_changed';
+    case ApprovalRequested = 'approval_requested';
+    case ApprovalResponded = 'approval_responded';
 
     public function label(): string
     {
@@ -20,6 +24,10 @@ enum NotificationType: string
             self::Absent => 'Absent',
             self::LeaveApproved => 'Leave Approved',
             self::LeaveRejected => 'Leave Rejected',
+            self::TicketReply => 'New reply',
+            self::TicketStatusChanged => 'Status changed',
+            self::ApprovalRequested => 'Approval needed',
+            self::ApprovalResponded => 'Approval update',
         };
     }
 }

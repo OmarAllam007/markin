@@ -49,7 +49,10 @@ class EmployeeTicketController extends Controller
     {
         /** @var Employee $employee */
         $employee = $request->user();
-        abort_unless($ticket->employee_id === $employee->id && $ticket->tenant_id === $employee->tenant_id, 404);
+        $isRequester = $ticket->employee_id === $employee->id;
+        // Approvers open the ticket from their approval push; only the requester can reply.
+        abort_unless($ticket->tenant_id === $employee->tenant_id
+            && ($isRequester || $ticket->approvals()->where('approver_employee_id', $employee->id)->exists()), 404);
 
         // Full catalog rows: formFields() needs ticket_type and the form_fields config.
         $ticket->load([
@@ -75,6 +78,7 @@ class EmployeeTicketController extends Controller
 
         return ApiResponse::success('Ticket retrieved.', [
             'id' => $ticket->id,
+            'is_requester' => $isRequester,
             'subject' => $ticket->subject,
             'description' => $ticket->description,
             'status' => $ticket->status->value,

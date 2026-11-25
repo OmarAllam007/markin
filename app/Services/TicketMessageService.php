@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\NotificationType;
 use App\Enums\TicketLogType;
 use App\Mail\TicketMessageMail;
 use App\Models\Attachment;
@@ -115,6 +116,13 @@ class TicketMessageService
 
         if ($to || $cc) {
             Mail::to($to ?: $cc)->cc($to ? $cc : [])->queue(new TicketMessageMail($message));
+        }
+
+        if (! $message->from_requester) {
+            $status = $message->requestStatus()->value('name');
+            TicketPush::requester($ticket, NotificationType::TicketReply, trim(
+                ($status ? "Status: {$status}. " : '').mb_strimwidth($message->body, 0, 140, '…')
+            ));
         }
     }
 }

@@ -30,6 +30,7 @@ class SendEmployeePush implements ShouldQueue
         }
 
         $delivered = $sender->send($token, $notification->title, $notification->body ?? '', [
+            ...$notification->data ?? [],
             'notification_id' => $notification->id,
             'type' => $notification->type->value,
         ]);

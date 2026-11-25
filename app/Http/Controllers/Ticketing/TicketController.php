@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Ticketing;
 
+use App\Enums\NotificationType;
 use App\Enums\PermissionAction;
 use App\Enums\PermissionModule;
 use App\Enums\RequestStatusType;
@@ -22,6 +23,7 @@ use App\Models\TicketSla;
 use App\Models\TicketSubcategory;
 use App\Services\TicketAccess;
 use App\Services\TicketMessageService;
+use App\Services\TicketPush;
 use App\Services\TicketService;
 use App\Services\TicketSlaClock;
 use Illuminate\Database\Eloquent\Builder;
@@ -345,6 +347,10 @@ class TicketController extends Controller
         abort_unless(TicketAccess::canEdit($request->user(), $ticket), 403);
 
         $ticket->update($request->validated());
+
+        if ($ticket->wasChanged('request_status_id') && $status = $ticket->requestStatus()->value('name')) {
+            TicketPush::requester($ticket, NotificationType::TicketStatusChanged, "Your request is now {$status}.");
+        }
 
         return redirect()->route('ticketing.tickets.show', $ticket)
             ->with('success', 'Ticket updated successfully.');

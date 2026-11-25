@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Enums\NotificationType;
 use App\Enums\RequestStatusType;
 use App\Enums\TicketApprovalAction;
 use App\Enums\TicketLogType;
@@ -151,6 +152,11 @@ class TicketApprovalService
         if ($ticket->technician?->email) {
             Mail::to($ticket->technician)->queue(new TicketApprovalRespondedMail($approval->fresh(['approverEmployee', 'ticket'])));
         }
+
+        $body = sprintf('%s %s request #%d at stage %d.', $approval->approverEmployee?->english_name ?? 'An approver', $approved ? 'approved' : 'rejected', $ticket->id, $approval->stage_order)
+            .($comments ? ' '.mb_strimwidth($comments, 0, 120, '…') : '');
+        TicketPush::technician($ticket, NotificationType::ApprovalResponded, $body, $approval);
+        TicketPush::requester($ticket, NotificationType::ApprovalResponded, $body, $approval);
     }
 
     /** Only pending approvals can be removed; the rest is history. */
@@ -215,6 +221,7 @@ class TicketApprovalService
         foreach ($pending->where('stage_order', $stage)->whereNull('notified_at') as $approval) {
             $approval->update(['notified_at' => now()]);
             Mail::to($approval->approverEmployee->email)->queue(new TicketApprovalRequestMail($approval));
+            TicketPush::approver($approval);
         }
     }
 }
