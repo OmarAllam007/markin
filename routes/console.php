@@ -9,3 +9,4 @@ Artisan::command('inspire', function () {
 })->purpose('Display an inspiring quote');
 
 Schedule::command('attendance:mark-absences')->hourly()->withoutOverlapping();
+Schedule::command('tickets:check-sla')->everyMinute()->withoutOverlapping();

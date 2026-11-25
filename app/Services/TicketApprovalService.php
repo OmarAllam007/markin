@@ -2,13 +2,16 @@
 
 namespace App\Services;
 
+use App\Enums\RequestStatusType;
 use App\Enums\TicketApprovalAction;
 use App\Enums\TicketLogType;
 use App\Enums\TicketStatus;
 use App\Mail\TicketApprovalRequestMail;
+use App\Mail\TicketApprovalRespondedMail;
 use App\Models\ApprovalRole;
 use App\Models\Attachment;
 use App\Models\Employee;
+use App\Models\RequestStatus;
 use App\Models\Ticket;
 use App\Models\TicketApproval;
 use App\Models\User;
@@ -136,11 +139,17 @@ class TicketApprovalService
             actor: $approval->approverEmployee,
         );
 
+        $ticket = $approval->ticket;
         if ($approved) {
-            $this->advance($approval->ticket);
+            $this->advance($ticket);
         } else {
             // ponytail: later stages stay pending and are never emailed; the technician can request new approvals.
-            $approval->ticket->update(['status' => TicketStatus::Rejected]);
+            $ticket->update(['status' => TicketStatus::Rejected, ...$this->requestStatus($ticket, waiting: false)]);
+        }
+
+        // The technician hears about every answer, with where the approvals stand now.
+        if ($ticket->technician?->email) {
+            Mail::to($ticket->technician)->queue(new TicketApprovalRespondedMail($approval->fresh(['approverEmployee', 'ticket'])));
         }
     }
 
@@ -156,8 +165,32 @@ class TicketApprovalService
         TicketLogger::log($ticket, TicketLogType::ApprovalRemoved, meta: $meta);
 
         if ($ticket->status === TicketStatus::InReview) {
-            $ticket->approvals()->exists() ? $this->advance($ticket) : $ticket->update(['status' => TicketStatus::Submitted]);
+            $ticket->approvals()->exists()
+                ? $this->advance($ticket)
+                : $ticket->update(['status' => TicketStatus::Submitted, ...$this->requestStatus($ticket, waiting: false)]);
         }
+    }
+
+    /**
+     * The request status that goes with the approval state: "Waiting for approval" while
+     * approvals are pending, back to the default open status once they're decided.
+     * A request the technician already resolved, closed or cancelled is never moved.
+     *
+     * @return array{request_status_id?: int}
+     */
+    private function requestStatus(Ticket $ticket, bool $waiting): array
+    {
+        $current = $ticket->requestStatus()->first()?->type;
+        if ($current?->finished()) {
+            return [];
+        }
+
+        $target = $waiting
+            ? RequestStatus::awaitingApprovalFor($ticket->tenant_id)
+            // Only leave the waiting status if the approvals put it there; a manual on hold stays.
+            : ($current === RequestStatusType::AwaitingApproval ? RequestStatus::initialFor($ticket->tenant_id) : null);
+
+        return $target && $target->id !== $ticket->request_status_id ? ['request_status_id' => $target->id] : [];
     }
 
     private function describe(TicketApproval $approval): array
@@ -171,12 +204,12 @@ class TicketApprovalService
         $pending = $ticket->approvals()->where('action', TicketApprovalAction::Pending)->get();
 
         if ($pending->isEmpty()) {
-            $ticket->update(['status' => TicketStatus::Approved]);
+            $ticket->update(['status' => TicketStatus::Approved, ...$this->requestStatus($ticket, waiting: false)]);
 
             return;
         }
 
-        $ticket->update(['status' => TicketStatus::InReview]);
+        $ticket->update(['status' => TicketStatus::InReview, ...$this->requestStatus($ticket, waiting: true)]);
 
         $stage = $pending->min('stage_order');
         foreach ($pending->where('stage_order', $stage)->whereNull('notified_at') as $approval) {

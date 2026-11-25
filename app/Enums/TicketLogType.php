@@ -15,6 +15,7 @@ enum TicketLogType: string
     case ApprovalApproved = 'approval_approved';
     case ApprovalRejected = 'approval_rejected';
     case MessageAdded = 'message_added';
+    case SlaBreached = 'sla_breached';
     case AttachmentAdded = 'attachment_added';
     case AttachmentRemoved = 'attachment_removed';
 
@@ -32,6 +33,7 @@ enum TicketLogType: string
             self::ApprovalApproved => 'Approved',
             self::ApprovalRejected => 'Rejected',
             self::MessageAdded => 'Message',
+            self::SlaBreached => 'Overdue',
             self::AttachmentAdded => 'File attached',
             self::AttachmentRemoved => 'File removed',
         };

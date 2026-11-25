@@ -13,6 +13,7 @@ import { index as leavesIndex } from '@/routes/leaves/index';
 import { index as locationsIndex } from '@/routes/locations';
 import { index as reportsIndex } from '@/routes/reports/index';
 import { index as ticketApprovalRolesIndex } from '@/routes/ticketing/admin/approval-roles/index';
+import { edit as ticketBusinessHoursEdit } from '@/routes/ticketing/admin/business-hours/index';
 import { index as ticketBusinessRulesIndex } from '@/routes/ticketing/admin/business-rules/index';
 import { index as ticketCategoriesIndex } from '@/routes/ticketing/admin/categories/index';
 import { index as ticketGroupsIndex } from '@/routes/ticketing/admin/groups/index';
@@ -86,6 +87,7 @@ const sections = computed(() => [
         { label: 'Subcategories', href: ticketSubcategoriesIndex.url(), icon: 'layers' },
         { label: 'Priorities', href: ticketPrioritiesIndex.url(), icon: 'flag' },
         { label: 'SLAs', href: ticketSlasIndex.url(), icon: 'timer' },
+        { label: 'Working hours', href: ticketBusinessHoursEdit.url(), icon: 'clock' },
         { label: 'Groups', href: ticketGroupsIndex.url(), icon: 'users' },
         { label: 'Request statuses', href: ticketRequestStatusesIndex.url(), icon: 'status' },
         { label: 'Approval roles', href: ticketApprovalRolesIndex.url(), icon: 'security-user' },

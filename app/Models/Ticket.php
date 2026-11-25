@@ -7,6 +7,7 @@ use App\Enums\TicketSource;
 use App\Enums\TicketStatus;
 use App\Enums\TicketType;
 use App\Services\TicketLogger;
+use App\Services\TicketSlaClock;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -42,6 +43,9 @@ use Illuminate\Database\Eloquent\SoftDeletes;
     'form_data',
     'client_info',
     'submitted_at',
+    'elapsed_minutes',
+    'clock_running_since',
+    'paused_at',
 ])]
 class Ticket extends Model
 {
@@ -49,6 +53,14 @@ class Ticket extends Model
 
     protected static function booted(): void
     {
+        // The SLA clock follows the request status type; see TicketSlaClock.
+        static::creating(fn (Ticket $t) => TicketSlaClock::sync($t));
+        // A closure, not an arrow fn: returning false from `updating` would cancel the save.
+        static::updating(function (Ticket $t): void {
+            if ($t->isDirty('request_status_id')) {
+                TicketSlaClock::sync($t);
+            }
+        });
         static::created(fn (Ticket $t) => TicketLogger::log($t, TicketLogType::Created, meta: TicketLogger::snapshot($t)));
         static::updated(function (Ticket $t) {
             if ($changes = TicketLogger::diff($t)) {
@@ -72,6 +84,9 @@ class Ticket extends Model
             'resolve_date' => 'datetime',
             'close_date' => 'datetime',
             'submitted_at' => 'datetime',
+            'clock_running_since' => 'datetime',
+            'paused_at' => 'datetime',
+            'elapsed_minutes' => 'integer',
             'overdue' => 'boolean',
             'time_spent' => 'integer',
         ];

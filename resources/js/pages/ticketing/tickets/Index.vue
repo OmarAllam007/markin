@@ -72,6 +72,7 @@ const clearAll = () => Object.assign(f, EMPTY);
 
 const STATUS_TYPES = [
     { value: 'open', label: 'Any open status' },
+    { value: 'awaiting_approval', label: 'Waiting for approval' },
     { value: 'on_hold', label: 'Any on-hold status' },
     { value: 'resolved', label: 'Any resolved status' },
     { value: 'closed', label: 'Any closed status' },
@@ -167,7 +168,7 @@ const removeTicket = (t: TicketRow) => {
                                 class="form-select form-select-sm"
                             >
                                 <option value="">Any status</option>
-                                <option value="active">Active (open or on hold)</option>
+                                <option value="active">Active (open, on hold or awaiting approval)</option>
                                 <optgroup label="By type">
                                     <option
                                         v-for="t in STATUS_TYPES"

@@ -8,6 +8,8 @@ import TicketConversation from '@/components/ticketing/TicketConversation.vue';
 import type { TicketMessage } from '@/components/ticketing/TicketConversation.vue';
 import TicketReplyDrawer from '@/components/ticketing/TicketReplyDrawer.vue';
 import type { ReplyStatus } from '@/components/ticketing/TicketReplyDrawer.vue';
+import TicketSlaCard from '@/components/ticketing/TicketSlaCard.vue';
+import type { SlaClock } from '@/components/ticketing/TicketSlaCard.vue';
 import { formatDateTime } from '@/lib/utils';
 import { destroy as destroyAttachment, show as downloadAttachment } from '@/routes/ticketing/attachments';
 import { index, edit } from '@/routes/ticketing/tickets';
@@ -72,6 +74,7 @@ const props = defineProps<{
     canRequestApproval: boolean;
     canReply: boolean;
     canEdit: boolean;
+    clock: SlaClock;
     replyStatuses: ReplyStatus[];
     logs: TicketLog[];
     approverOptions: { id: number; english_name: string; email: string }[];
@@ -428,7 +431,16 @@ const actionColors: Record<string, string> = {
 
             <!-- Sidebar metadata -->
             <div class="col-lg-4">
-                <div class="card ticket-panel ticket-sidebar">
+                <div class="ticket-sidebar">
+                <TicketSlaCard
+                    :clock="clock"
+                    :due-date="ticket.due_date"
+                    :overdue="ticket.overdue"
+                    :sla-name="ticket.sla?.name ?? null"
+                    :created-at="ticket.created_at"
+                    :first-response-at="ticket.first_response_date"
+                />
+                <div class="card ticket-panel">
                     <div class="ticket-card-heading"><h3>Details</h3></div>
                     <div class="card-body ticket-card-content">
                         <table class="table table-sm table-borderless">
@@ -507,6 +519,7 @@ const actionColors: Record<string, string> = {
                             </tbody>
                         </table>
                     </div>
+                </div>
                 </div>
             </div>
         </div>

@@ -274,8 +274,10 @@ class TicketService
                 'group_id' => $group->id,
                 'technician_id' => $technicianId,
                 'sla_id' => $sla?->id,
-                // ponytail: wall-clock hours; business_hours_only needs the tenant's work calendar
-                'due_date' => $sla ? now()->addHours($sla->resolve_hours) : null,
+                // Counted in working hours when the SLA says so.
+                'due_date' => $sla
+                    ? ($sla->business_hours_only ? BusinessCalendar::forTenant($tenantId) : BusinessCalendar::always())->addMinutes(now(), $sla->resolve_hours * 60)
+                    : null,
                 'form_data' => $this->compute($fields, $data['form_data'] ?? []),
                 'submitted_at' => now(),
             ]);

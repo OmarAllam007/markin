@@ -17,6 +17,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'allow_temporary_shifts', 'temporary_shift_calculation',
     'check_biometrics', 'send_reminders', 'allow_remote_checkin', 'allow_any_location_checkin',
     'timezone',
+    'business_hours',
 ])]
 class CompanySetting extends Model
 {
@@ -30,6 +31,7 @@ class CompanySetting extends Model
             'send_reminders' => 'boolean',
             'allow_remote_checkin' => 'boolean',
             'allow_any_location_checkin' => 'boolean',
+            'business_hours' => 'array',
         ];
     }
 

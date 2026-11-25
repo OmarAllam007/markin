@@ -38,7 +38,7 @@ beforeEach(function () {
 it('starts new requests on the default status and seeds the company statuses', function () {
     expect($this->ticket->requestStatus->name)->toBe('Open')
         ->and(RequestStatus::forTenant($this->tenant->id)->pluck('type')->map->value->unique()->values()->all())
-        ->toBe(['open', 'on_hold', 'resolved', 'closed', 'cancelled']);
+        ->toBe(['open', 'awaiting_approval', 'on_hold', 'resolved', 'closed', 'cancelled']);
 });
 
 it('lets the technician reply, change the status, copy people and attach files', function () {

@@ -36,6 +36,7 @@ class TicketLogger
         'sla_id' => TicketSla::class,
         'employee_id' => Employee::class,
         'due_date' => 'date',
+        'first_response_date' => 'date',
         'resolve_date' => 'date',
         'close_date' => 'date',
     ];

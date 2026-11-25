@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Ticketing\Admin\ApprovalRoleController;
+use App\Http\Controllers\Ticketing\Admin\BusinessHoursController;
 use App\Http\Controllers\Ticketing\Admin\BusinessRuleController;
 use App\Http\Controllers\Ticketing\Admin\CategoryController;
 use App\Http\Controllers\Ticketing\Admin\GroupController;
@@ -29,6 +30,8 @@ Route::middleware(['auth', 'verified'])->prefix('ticketing')->name('ticketing.')
         Route::post('request-statuses/reorder', [RequestStatusController::class, 'reorder'])->name('request-statuses.reorder');
         Route::resource('request-statuses', RequestStatusController::class)->only(['index', 'store', 'update', 'destroy']);
 
+        Route::get('business-hours', [BusinessHoursController::class, 'edit'])->name('business-hours.edit');
+        Route::put('business-hours', [BusinessHoursController::class, 'update'])->name('business-hours.update');
         Route::get('service-catalog', [ServiceCatalogController::class, 'index'])->name('service-catalog.index');
         Route::put('service-catalog/{level}/{id}', [ServiceCatalogController::class, 'update'])
             ->whereIn('level', ['category', 'subcategory', 'item'])->whereNumber('id')->name('service-catalog.update');

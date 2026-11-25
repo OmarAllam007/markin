@@ -39,10 +39,12 @@ class TicketMessageService
         ];
     }
 
-    /** Statuses this side may pick; resolving is for the technician side. */
+    /** Statuses this side may pick: never the automatic approval one, and resolving is for the technician side. */
     public static function statusesFor(int $tenantId, bool $fromRequester)
     {
-        return RequestStatus::forTenant($tenantId)->filter(fn ($s) => ! $fromRequester || $s->type->requesterCanSet())->values();
+        return RequestStatus::forTenant($tenantId)
+            ->filter(fn ($s) => $s->type->manual() && (! $fromRequester || $s->type->requesterCanSet()))
+            ->values();
     }
 
     /**
@@ -76,10 +78,11 @@ class TicketMessageService
                 ]);
             }
 
-            // The status change itself is logged by the ticket's `updated` event.
-            if ($statusChanges) {
-                $ticket->update(['request_status_id' => $newStatusId]);
-            }
+            // The first reply from support is the first response; the status change is logged by the `updated` event.
+            $ticket->update(array_filter([
+                'request_status_id' => $statusChanges ? $newStatusId : null,
+                'first_response_date' => ! $fromRequester && ! $ticket->first_response_date ? now() : null,
+            ]));
 
             return $message;
         });

@@ -244,8 +244,11 @@ const move = (i: number, by: number) => {
 
             <!-- Conditions -->
             <section class="block">
-                <div class="d-flex align-items-center justify-content-between mb-4">
-                    <h4 class="block-title">When</h4>
+                <div class="when-heading">
+                    <div>
+                        <h4 class="block-title">When</h4>
+                        <p class="when-hint">Choose the requests this rule should apply to.</p>
+                    </div>
                     <div
                         class="seg"
                         role="radiogroup"
@@ -255,12 +258,12 @@ const move = (i: number, by: number) => {
                             v-model="form.match"
                             type="radio"
                             value="all"
-                        >All conditions match</label>
+                        >Match all</label>
                         <label :class="{ on: form.match === 'any' }"><input
                             v-model="form.match"
                             type="radio"
                             value="any"
-                        >Any condition matches</label>
+                        >Match any</label>
                     </div>
                 </div>
 
@@ -269,15 +272,27 @@ const move = (i: number, by: number) => {
                     :key="i"
                     class="cond-row"
                 >
-                    <span
-                        v-if="i"
-                        class="joiner"
-                    >{{ form.match === 'all' ? 'and' : 'or' }}</span>
-                    <div class="row g-2 align-items-start">
-                        <div class="col-sm-4">
+                    <div v-if="i" class="joiner"><span>{{ form.match === 'all' ? 'AND' : 'OR' }}</span></div>
+                    <div class="condition-card">
+                        <div class="condition-top">
+                            <div class="condition-index">{{ i + 1 }}</div>
+                            <span class="condition-title">Condition {{ i + 1 }}</span>
+                            <button
+                                type="button"
+                                class="btn btn-sm btn-icon btn-light condition-remove"
+                                title="Remove condition"
+                                :aria-label="`Remove condition ${i + 1}`"
+                                :disabled="form.conditions.length === 1"
+                                @click="form.conditions.splice(i, 1)"
+                            ><i class="ki-outline ki-cross" /></button>
+                        </div>
+                        <div class="condition-grid">
+                        <div>
+                            <label class="condition-label" :for="`condition-field-${i}`">Field</label>
                             <select
+                                :id="`condition-field-${i}`"
                                 v-model="c.field"
-                                class="form-select form-select-sm"
+                                class="form-select"
                                 :aria-label="`Condition ${i + 1} field`"
                                 @change="c.values = []"
                             >
@@ -288,37 +303,30 @@ const move = (i: number, by: number) => {
                                 >{{ f.label }}</option>
                             </select>
                         </div>
-                        <div class="col-sm-3">
+                        <div>
+                            <label class="condition-label" :for="`condition-operator-${i}`">Operator</label>
                             <select
+                                :id="`condition-operator-${i}`"
                                 v-model="c.operator"
-                                class="form-select form-select-sm"
+                                class="form-select"
                                 :aria-label="`Condition ${i + 1} operator`"
                             >
                                 <option value="in">is any of</option>
                                 <option value="not_in">is none of</option>
                             </select>
                         </div>
-                        <div class="col-sm-5 d-flex gap-2">
+                        <div class="condition-values">
+                            <label class="condition-label">Values</label>
                             <MultiPicker
                                 v-model="c.values"
-                                class="flex-grow-1"
                                 :options="options[c.field] ?? []"
                                 :placeholder="FIELDS.find(f => f.value === c.field)?.hint"
                                 :invalid="!!conditionError(i)"
                             />
-                            <button
-                                type="button"
-                                class="btn btn-sm btn-icon btn-light flex-shrink-0"
-                                title="Remove condition"
-                                :disabled="form.conditions.length === 1"
-                                @click="form.conditions.splice(i, 1)"
-                            ><i class="ki-outline ki-cross" /></button>
                         </div>
+                        </div>
+                        <div v-if="conditionError(i)" class="text-danger fs-8 mt-2">{{ conditionError(i) }}</div>
                     </div>
-                    <div
-                        v-if="conditionError(i)"
-                        class="text-danger fs-8 mt-1"
-                    >{{ conditionError(i) }}</div>
                 </div>
                 <div
                     v-if="form.errors.conditions"
@@ -438,12 +446,26 @@ const move = (i: number, by: number) => {
 
 .block { margin-bottom: 24px; padding: 18px; border: 1px solid #e5edf1; border-radius: 12px; background: #fafcfd; }
 .block-title { margin: 0; color: #24465b; font-size: 14px; font-weight: 800; }
-.seg { display: inline-flex; padding: 3px; border-radius: 8px; background: #eaf0f3; }
-.seg label { padding: 5px 10px; border-radius: 6px; color: #5e7383; font-size: 12px; font-weight: 600; cursor: pointer; }
+.when-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-bottom: 18px; }
+.when-hint { margin: 4px 0 0; color: #7b909d; font-size: 12px; }
+.seg { display: inline-flex; flex-wrap: wrap; padding: 3px; border-radius: 9px; background: #eaf0f3; }
+.seg label { padding: 7px 11px; border-radius: 7px; color: #5e7383; font-size: 12px; font-weight: 600; cursor: pointer; }
 .seg label.on { background: #fff; color: #173c61; box-shadow: 0 1px 3px rgba(23, 60, 97, .12); }
 .seg input { position: absolute; opacity: 0; pointer-events: none; }
 .seg label:has(input:focus-visible) { outline: 2px solid #2aa2a9; }
 .cond-row { margin-bottom: 12px; }
-.joiner { display: inline-block; margin: 0 0 8px 2px; color: #8095a3; font-size: 11px; font-weight: 800; text-transform: lowercase; }
+.condition-card { padding: 14px; border: 1px solid #dae5ea; border-radius: 10px; background: #fff; }
+.condition-top { display: flex; align-items: center; gap: 8px; margin-bottom: 13px; }
+.condition-index { display: grid; place-items: center; width: 25px; height: 25px; border-radius: 7px; background: #e3f3f3; color: #166d75; font-size: 11px; font-weight: 800; }
+.condition-title { color: #38576b; font-size: 12px; font-weight: 700; }
+.condition-remove { margin-inline-start: auto; }
+.condition-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 12px; }
+.condition-grid > div { min-width: 0; }
+.condition-label { display: block; margin-bottom: 5px; color: #668091; font-size: 11px; font-weight: 700; }
+.condition-values { grid-column: 1 / -1; }
+.joiner { display: flex; align-items: center; gap: 10px; margin: 1px 0 9px; color: #5b7889; font-size: 10px; font-weight: 800; letter-spacing: .09em; }
+.joiner::before, .joiner::after { content: ''; height: 1px; flex: 1; background: #dae5ea; }
+.joiner span { padding: 3px 8px; border-radius: 5px; background: #eaf2f4; }
+@media (max-width: 480px) { .condition-grid { grid-template-columns: minmax(0, 1fr); } .condition-values { grid-column: 1; } }
 @media (max-width: 767px) { .rule { flex-wrap: wrap; } .actions { width: 100%; justify-content: flex-end; } }
 </style>

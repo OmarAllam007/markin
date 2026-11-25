@@ -23,6 +23,7 @@ use App\Models\TicketSubcategory;
 use App\Services\TicketAccess;
 use App\Services\TicketMessageService;
 use App\Services\TicketService;
+use App\Services\TicketSlaClock;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -84,7 +85,7 @@ class TicketController extends Controller
         $tenantId = $this->authorizeTicketList($request);
 
         $sheet = (new Spreadsheet)->getActiveSheet();
-        $sheet->fromArray(['#', 'Subject', 'Status', 'Approval', 'Service', 'Priority', 'Requester', 'Group', 'Technician', 'Created', 'Due', 'Overdue', 'Resolved']);
+        $sheet->fromArray(['#', 'Subject', 'Status', 'Approval', 'Service', 'Priority', 'Requester', 'Group', 'Technician', 'Created', 'Due', 'Overdue', 'Resolved', 'First response', 'Resolution time (h)', 'Clock']);
         $sheet->getStyle('1:1')->getFont()->setBold(true);
         $sheet->freezePane('A2');
 
@@ -107,12 +108,15 @@ class TicketController extends Controller
                         $t->due_date?->format('Y-m-d H:i'),
                         $t->overdue ? 'Yes' : 'No',
                         $t->resolve_date?->format('Y-m-d H:i'),
+                        $t->first_response_date?->format('Y-m-d H:i'),
+                        round(TicketSlaClock::elapsed($t) / 60, 2),
+                        TicketSlaClock::state($t),
                     ], null, "A{$row}");
                     $row++;
                 }
             });
 
-        foreach (range('A', 'M') as $col) {
+        foreach (range('A', 'P') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
 
@@ -137,7 +141,7 @@ class TicketController extends Controller
     {
         $request->validate([
             'search' => ['nullable', 'string', 'max:100'],
-            'request_status_id' => ['nullable', 'regex:/^(\d+|open|on_hold|resolved|closed|cancelled|active)$/'],
+            'request_status_id' => ['nullable', 'regex:/^(\d+|open|on_hold|awaiting_approval|resolved|closed|cancelled|active)$/'],
             'status' => ['nullable', 'string'],
             'category_id' => ['nullable', 'integer'],
             'priority_id' => ['nullable', 'integer'],
@@ -161,7 +165,7 @@ class TicketController extends Controller
             // A status, a whole type (e.g. every on-hold status), or "active" = not resolved/closed/cancelled.
             ->when($request->request_status_id, fn ($q, $value) => match (true) {
                 ctype_digit((string) $value) => $q->where('request_status_id', $value),
-                $value === 'active' => $q->whereHas('requestStatus', fn ($s) => $s->whereIn('type', [RequestStatusType::Open, RequestStatusType::OnHold])),
+                $value === 'active' => $q->whereHas('requestStatus', fn ($s) => $s->whereIn('type', [RequestStatusType::Open, RequestStatusType::OnHold, RequestStatusType::AwaitingApproval])),
                 default => $q->whereHas('requestStatus', fn ($s) => $s->where('type', $value)),
             })
             ->when($request->status, fn ($q, $status) => $q->where('status', $status))
@@ -275,6 +279,18 @@ class TicketController extends Controller
             'logs' => $ticket->logs()->with(['user:id,name', 'employee:id,english_name'])->latest('id')->get(),
             'canRequestApproval' => $isStaff,
             'canEdit' => TicketAccess::canEdit($user, $ticket),
+            // Elapsed is exact at render time; the page keeps it ticking from clock_running_since.
+            'clock' => [
+                'state' => TicketSlaClock::state($ticket),
+                'elapsed_minutes' => TicketSlaClock::elapsed($ticket),
+                'ticking' => TicketSlaClock::ticking($ticket),
+                'business_hours' => (bool) $ticket->sla?->business_hours_only,
+                'running_since' => $ticket->clock_running_since?->toIso8601String(),
+                'paused_at' => $ticket->paused_at?->toIso8601String(),
+                'budget_minutes' => $ticket->sla ? $ticket->sla->resolve_hours * 60 : null,
+                'response_budget_minutes' => $ticket->sla ? $ticket->sla->first_response_hours * 60 : null,
+                'server_now' => now()->toIso8601String(),
+            ],
             'canReply' => $isStaff || $isRequester,
             // Resolving is for the technician side.
             'replyStatuses' => TicketMessageService::statusesFor($ticket->tenant_id, $isRequester && ! $isStaff)->map->only(['id', 'name', 'type', 'color']),

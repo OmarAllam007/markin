@@ -15,6 +15,7 @@ class RequestStatus extends Model
     public const DEFAULTS = [
         ['Open', 'open', '#3e97ff', true],
         ['In progress', 'open', '#7239ea', false],
+        ['Waiting for approval', 'awaiting_approval', '#b07d00', false],
         ['On hold', 'on_hold', '#f6c000', false],
         ['Waiting for customer', 'on_hold', '#ff8f00', false],
         ['Resolved', 'resolved', '#17a673', false],
@@ -46,6 +47,11 @@ class RequestStatus extends Model
         }
 
         return $statuses;
+    }
+
+    public static function awaitingApprovalFor(int $tenantId): ?self
+    {
+        return static::forTenant($tenantId)->firstWhere('type', RequestStatusType::AwaitingApproval);
     }
 
     public static function initialFor(int $tenantId): ?self
