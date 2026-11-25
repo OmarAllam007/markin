@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { index, create, edit, destroy } from '@/routes/ticketing/admin/subcategories';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import { watch } from 'vue';
+import { index, create, edit, destroy } from '@/routes/ticketing/admin/subcategories';
 
 type SubcategoryRow = {
     id: number;
     name: string;
-    name_ar: string | null;
+    name_translations: Record<string, string> | null;
     is_active: boolean;
     category: { id: number; name: string } | null;
 };
@@ -32,8 +32,15 @@ const filterForm = useForm({ search: props.filters?.search ?? '', category_id: p
 
 const submitFilters = () => {
     const q: Record<string, string> = {};
-    if (filterForm.search) q.search = filterForm.search;
-    if (filterForm.category_id) q.category_id = filterForm.category_id;
+
+    if (filterForm.search) {
+q.search = filterForm.search;
+}
+
+    if (filterForm.category_id) {
+q.category_id = filterForm.category_id;
+}
+
     filterForm.get(index.url({ query: q }), { preserveState: true, replace: true, only: ['subcategories', 'filters'] });
 };
 
@@ -42,7 +49,10 @@ watch(() => filterForm.search, () => debouncedSubmit());
 watch(() => filterForm.category_id, () => submitFilters());
 
 const removeSubcategory = (s: SubcategoryRow) => {
-    if (!window.confirm(`Delete subcategory "${s.name}"?`)) return;
+    if (!window.confirm(`Delete subcategory "${s.name}"?`)) {
+return;
+}
+
     router.delete(destroy.url({ subcategory: s.id }));
 };
 </script>
@@ -105,9 +115,9 @@ const removeSubcategory = (s: SubcategoryRow) => {
                                 <td>
                                     <div class="fw-bold text-gray-800">{{ s.name }}</div>
                                     <div
-                                        v-if="s.name_ar"
+                                        v-if="Object.values(s.name_translations ?? {}).some(Boolean)"
                                         class="text-muted fs-7"
-                                    >{{ s.name_ar }}</div>
+                                    >{{ Object.values(s.name_translations ?? {}).filter(Boolean).join(' · ') }}</div>
                                 </td>
                                 <td class="text-gray-700">{{ s.category?.name ?? '—' }}</td>
                                 <td>

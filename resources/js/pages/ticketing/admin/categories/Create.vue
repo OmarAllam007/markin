@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { store, index } from '@/routes/ticketing/admin/categories';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import TranslationInputs from '@/components/TranslationInputs.vue';
+import { store, index } from '@/routes/ticketing/admin/categories';
 
 type TicketTypeOption = { value: string; label: string };
 
@@ -8,7 +9,7 @@ const props = defineProps<{ types: TicketTypeOption[] }>();
 
 const form = useForm({
     name: '',
-    name_ar: '',
+    name_translations: {} as Record<string, string>,
     description: '',
     icon: '',
     color: '#6c757d',
@@ -60,20 +61,11 @@ const submit = () => form.post(store.url());
                                 class="invalid-feedback"
                             >{{ form.errors.name }}</div>
                         </div>
-                        <div class="col-md-6">
-                            <label
-                                class="form-label"
-                                for="cat-name-ar"
-                            >Name (Arabic)</label>
-                            <input
-                                id="cat-name-ar"
-                                v-model="form.name_ar"
-                                type="text"
-                                class="form-control"
-                                dir="rtl"
-                                autocomplete="off"
-                            />
-                        </div>
+                        <TranslationInputs
+                            v-model="form.name_translations"
+                            label="Name"
+                            id-prefix="cat-name"
+                        />
                         <div class="col-md-12">
                             <label
                                 class="form-label"

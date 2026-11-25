@@ -1,13 +1,17 @@
 <script setup lang="ts">
-import { update, index } from '@/routes/ticketing/admin/groups';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { update, index } from '@/routes/ticketing/admin/groups';
 
-type GroupModel = { id: number; name: string; description: string | null; is_active: boolean };
+type Option = { value: string; label: string };
+type UserOption = { id: number; name: string; email: string };
+type GroupModel = { id: number; name: string; type: string; description: string | null; is_active: boolean; member_ids: number[] };
 
-const props = defineProps<{ group: GroupModel }>();
+const props = defineProps<{ group: GroupModel; types: Option[]; users: UserOption[] }>();
 
 const form = useForm({
     name: props.group.name,
+    type: props.group.type,
+    member_ids: props.group.member_ids,
     description: props.group.description ?? '',
     is_active: props.group.is_active,
 });
@@ -68,6 +72,58 @@ const submit = () => form.put(update.url({ group: props.group.id }));
                                     for="grp-active"
                                 >Active</label>
                             </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label
+                                class="form-label required"
+                                for="grp-type"
+                            >Group Type</label>
+                            <select
+                                id="grp-type"
+                                v-model="form.type"
+                                class="form-select"
+                                :class="{ 'is-invalid': form.errors.type }"
+                            >
+                                <option
+                                    v-for="t in types"
+                                    :key="t.value"
+                                    :value="t.value"
+                                >{{ t.label }}</option>
+                            </select>
+                            <div class="form-text">Only technician groups can receive tickets.</div>
+                        </div>
+                        <div class="col-md-12">
+                            <label class="form-label">Members</label>
+                            <div
+                                class="border rounded p-4 mh-250px overflow-auto"
+                                :class="{ 'border-danger': form.errors.member_ids }"
+                            >
+                                <div
+                                    v-for="u in users"
+                                    :key="u.id"
+                                    class="form-check mb-2"
+                                >
+                                    <input
+                                        :id="`grp-m-${u.id}`"
+                                        v-model="form.member_ids"
+                                        class="form-check-input"
+                                        type="checkbox"
+                                        :value="u.id"
+                                    />
+                                    <label
+                                        class="form-check-label"
+                                        :for="`grp-m-${u.id}`"
+                                    >{{ u.name }} <span class="text-muted fs-7">{{ u.email }}</span></label>
+                                </div>
+                                <div
+                                    v-if="!users.length"
+                                    class="text-muted"
+                                >No users in this company.</div>
+                            </div>
+                            <div
+                                v-if="form.errors.member_ids"
+                                class="text-danger fs-7 mt-1"
+                            >{{ form.errors.member_ids }}</div>
                         </div>
                         <div class="col-md-12">
                             <label

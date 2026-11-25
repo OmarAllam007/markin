@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { store, index } from '@/routes/ticketing/admin/priorities';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { store, index } from '@/routes/ticketing/admin/priorities';
 
 const form = useForm({
     name: '',

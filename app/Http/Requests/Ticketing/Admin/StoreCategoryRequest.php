@@ -17,7 +17,8 @@ class StoreCategoryRequest extends FormRequest
     {
         return [
             'name' => ['required', 'string', 'max:255'],
-            'name_ar' => ['nullable', 'string', 'max:255'],
+            'name_translations' => ['nullable', 'array'],
+            'name_translations.*' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string', 'max:1000'],
             'icon' => ['nullable', 'string', 'max:100'],
             'color' => ['nullable', 'string', 'max:20'],

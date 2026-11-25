@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { index, create, edit, destroy } from '@/routes/ticketing/admin/slas';
 import { Head, Link, router } from '@inertiajs/vue3';
+import { index, create, edit, destroy } from '@/routes/ticketing/admin/slas';
 
 type SlaRow = { id: number; name: string; first_response_hours: number; resolve_hours: number; business_hours_only: boolean; is_active: boolean };
 type PaginatorLink = { url: string | null; label: string; active: boolean };
@@ -10,7 +10,10 @@ defineProps<{
 }>();
 
 const removeSla = (s: SlaRow) => {
-    if (!window.confirm(`Delete SLA policy "${s.name}"?`)) return;
+    if (!window.confirm(`Delete SLA policy "${s.name}"?`)) {
+return;
+}
+
     router.delete(destroy.url({ sla: s.id }));
 };
 </script>

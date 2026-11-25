@@ -8,7 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['tenant_id', 'created_by', 'name'])]
+#[Fillable(['tenant_id', 'created_by', 'name', 'manager_employee_id'])]
 class Department extends Model
 {
     /** @use HasFactory<DepartmentFactory> */
@@ -22,5 +22,11 @@ class Department extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** Approves as "direct manager" for the department's employees. */
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'manager_employee_id');
     }
 }

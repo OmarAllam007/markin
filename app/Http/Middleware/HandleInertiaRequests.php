@@ -3,6 +3,8 @@
 namespace App\Http\Middleware;
 
 use App\Enums\AppModule;
+use App\Enums\PermissionAction;
+use App\Enums\PermissionModule;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 
@@ -24,6 +26,8 @@ class HandleInertiaRequests extends Middleware
         return [
             ...parent::share($request),
             'name' => config('app.name'),
+            // Languages admins can write content in; the first is the default.
+            'contentLocales' => config('app.content_locales'),
             'auth' => [
                 'user' => $user,
                 'currentTenant' => $tenant ? [
@@ -63,6 +67,8 @@ class HandleInertiaRequests extends Middleware
             'enabledModules' => $tenant
                 ? $tenant->modules()->where('is_enabled', true)->pluck('module')->map(fn ($m) => $m->value)
                 : [],
+            // Ticket setup pages need the Ticketing role permission; technicians only work tickets.
+            'canManageTicketing' => $tenant && $user?->canPerform($tenant, PermissionModule::Ticketing, PermissionAction::View),
             'tenantModules' => $tenant && $user?->isAdminOf($tenant)
                 ? collect(AppModule::cases())->map(fn (AppModule $m) => [
                     'module' => $m->value,

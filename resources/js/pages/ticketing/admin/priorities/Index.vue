@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { index, create, edit, destroy } from '@/routes/ticketing/admin/priorities';
 import { Head, Link, router } from '@inertiajs/vue3';
+import { index, create, edit, destroy } from '@/routes/ticketing/admin/priorities';
 
 type PriorityRow = { id: number; name: string; color: string; icon: string | null; sla_hours: number | null; is_default: boolean; sort_order: number };
 type PaginatorLink = { url: string | null; label: string; active: boolean };
@@ -17,7 +17,10 @@ const props = defineProps<{
 }>();
 
 const removePriority = (p: PriorityRow) => {
-    if (!window.confirm(`Delete priority "${p.name}"?`)) return;
+    if (!window.confirm(`Delete priority "${p.name}"?`)) {
+return;
+}
+
     router.delete(destroy.url({ priority: p.id }));
 };
 </script>

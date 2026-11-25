@@ -1,13 +1,14 @@
 <script setup lang="ts">
-import { update, index } from '@/routes/ticketing/admin/categories';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import TranslationInputs from '@/components/TranslationInputs.vue';
+import { update, index } from '@/routes/ticketing/admin/categories';
 
 type TicketTypeOption = { value: string; label: string };
 
 type CategoryModel = {
     id: number;
     name: string;
-    name_ar: string | null;
+    name_translations: Record<string, string> | null;
     description: string | null;
     icon: string | null;
     color: string;
@@ -19,7 +20,7 @@ const props = defineProps<{ category: CategoryModel; types: TicketTypeOption[] }
 
 const form = useForm({
     name: props.category.name,
-    name_ar: props.category.name_ar ?? '',
+    name_translations: { ...(props.category.name_translations ?? {}) } as Record<string, string>,
     description: props.category.description ?? '',
     icon: props.category.icon ?? '',
     color: props.category.color,
@@ -71,20 +72,11 @@ const submit = () => form.put(update.url({ category: props.category.id }));
                                 class="invalid-feedback"
                             >{{ form.errors.name }}</div>
                         </div>
-                        <div class="col-md-6">
-                            <label
-                                class="form-label"
-                                for="cat-name-ar"
-                            >Name (Arabic)</label>
-                            <input
-                                id="cat-name-ar"
-                                v-model="form.name_ar"
-                                type="text"
-                                class="form-control"
-                                dir="rtl"
-                                autocomplete="off"
-                            />
-                        </div>
+                        <TranslationInputs
+                            v-model="form.name_translations"
+                            label="Name"
+                            id-prefix="cat-name"
+                        />
                         <div class="col-md-12">
                             <label
                                 class="form-label"

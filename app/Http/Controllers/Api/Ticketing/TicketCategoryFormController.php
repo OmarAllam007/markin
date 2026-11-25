@@ -20,6 +20,11 @@ class TicketCategoryFormController extends Controller
             return ApiResponse::error('Not found.', null, 404);
         }
 
-        return ApiResponse::success('Form fields retrieved.', TicketCategoryController::buildFormPayload($category, $employee->tenant_id));
+        return ApiResponse::success('Form fields retrieved.', TicketCategoryController::buildFormPayload(
+            $category,
+            $employee->tenant_id,
+            $request->integer('subcategory_id') ?: null,
+            $request->integer('item_id') ?: null,
+        ));
     }
 }

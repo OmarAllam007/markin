@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { update, index } from '@/routes/departments';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { update, index } from '@/routes/departments';
 
 type DepartmentModel = {
     id: number;
     name: string;
+    manager_employee_id: number | null;
 };
 
-const props = defineProps<{ department: DepartmentModel }>();
+const props = defineProps<{ department: DepartmentModel; employees: { id: number; english_name: string; email: string | null }[] }>();
 
 const form = useForm({
+    manager_employee_id: props.department.manager_employee_id ?? '' as number | '',
     name: props.department.name,
 });
 
@@ -60,6 +62,30 @@ const submit = () => {
                             >
                                 {{ form.errors.name }}
                             </div>
+                        </div>
+                        <div class="col-md-6">
+                            <label
+                                class="form-label"
+                                for="dept-manager"
+                            >Manager</label>
+                            <select
+                                id="dept-manager"
+                                v-model="form.manager_employee_id"
+                                class="form-select"
+                                :class="{ 'is-invalid': form.errors.manager_employee_id }"
+                            >
+                                <option value="">No manager</option>
+                                <option
+                                    v-for="e in employees"
+                                    :key="e.id"
+                                    :value="e.id"
+                                >{{ e.english_name }}{{ e.email ? '' : ' (no email)' }}</option>
+                            </select>
+                            <div
+                                v-if="form.errors.manager_employee_id"
+                                class="invalid-feedback"
+                            >{{ form.errors.manager_employee_id }}</div>
+                            <div class="form-text">Approves requests as the direct manager of this department's employees.</div>
                         </div>
                     </div>
                 </div>

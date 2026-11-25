@@ -4,7 +4,6 @@ use App\Enums\AppModule;
 use App\Models\Attachment;
 use App\Models\Tenant;
 use App\Models\TenantModule;
-use App\Models\TicketCategory;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -16,12 +15,13 @@ function submitTicketWithAttachment(User $admin, Tenant $tenant): Attachment
 {
     TenantModule::create(['tenant_id' => $tenant->id, 'module' => AppModule::Ticketing->value, 'is_enabled' => true]);
 
-    $category = TicketCategory::create(['tenant_id' => $tenant->id, 'name' => 'HR', 'color' => '#000000', 'is_active' => true]);
+    $service = configuredTicketService($tenant);
 
     test()->actingAs($admin)->post(route('ticketing.tickets.store'), [
         'subject' => 'Medical leave',
         'description' => 'Report attached',
-        'category_id' => $category->id,
+        'category_id' => $service['category']->id,
+        'subcategory_id' => $service['subcategory']->id,
         'attachments' => [UploadedFile::fake()->create('medical-report.pdf', 100, 'application/pdf')],
     ])->assertRedirect();
 

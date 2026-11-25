@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { store, index } from '@/routes/ticketing/admin/slas';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { store, index } from '@/routes/ticketing/admin/slas';
 
 const form = useForm({
     name: '',

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { index as departmentsIndex, create as departmentsCreate, edit as departmentsEdit, destroy as departmentsDestroy } from '@/routes/departments';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import { watch } from 'vue';
+import { index as departmentsIndex, create as departmentsCreate, edit as departmentsEdit, destroy as departmentsDestroy } from '@/routes/departments';
 
 type Creator = { id: number; name: string };
 
@@ -11,6 +11,7 @@ type DepartmentRow = {
     name: string;
     created_at: string;
     creator: Creator | null;
+    manager: { id: number; english_name: string } | null;
 };
 
 type PaginatorLink = { url: string | null; label: string; active: boolean };
@@ -36,9 +37,11 @@ const filterForm = useForm({
 
 const submitFilters = () => {
     const q: Record<string, string> = {};
+
     if (filterForm.search) {
         q.search = filterForm.search;
     }
+
     filterForm.get(departmentsIndex.url({ query: q }), {
         preserveState: true,
         replace: true,
@@ -53,6 +56,7 @@ const removeDepartment = (d: DepartmentRow) => {
     if (!window.confirm(`Delete department "${d.name}"? This cannot be undone.`)) {
         return;
     }
+
     router.delete(departmentsDestroy.url({ department: d.id }));
 };
 </script>
@@ -92,6 +96,7 @@ const removeDepartment = (d: DepartmentRow) => {
                         <thead>
                             <tr class="text-start text-gray-500 text-uppercase fs-7 fw-bold">
                                 <th>Name</th>
+                                <th>Manager</th>
                                 <th>Created by</th>
                                 <th class="text-end w-200px">Actions</th>
                             </tr>
@@ -102,6 +107,7 @@ const removeDepartment = (d: DepartmentRow) => {
                                 :key="d.id"
                             >
                                 <td class="fw-bold text-gray-800">{{ d.name }}</td>
+                                <td class="text-gray-700">{{ d.manager?.english_name ?? '—' }}</td>
                                 <td class="text-gray-700">{{ d.creator?.name ?? '—' }}</td>
                                 <td class="text-end text-nowrap">
                                     <Link
@@ -130,7 +136,7 @@ const removeDepartment = (d: DepartmentRow) => {
                             </tr>
                             <tr v-if="(isPaginated(departments) ? departments.data : departments).length === 0">
                                 <td
-                                    colspan="3"
+                                    colspan="4"
                                     class="text-center text-muted py-10"
                                 >
                                     No departments found.

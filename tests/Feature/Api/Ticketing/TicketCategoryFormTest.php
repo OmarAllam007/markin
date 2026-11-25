@@ -6,7 +6,6 @@ use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\TenantModule;
 use App\Models\TicketCategory;
-use App\Models\TicketTypeCustomField;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -53,7 +52,7 @@ it('returns base fields from the TicketType enum marked as is_base true', functi
         ->assertSuccessful()
         ->json('data.fields');
 
-    $baseFields = array_filter($fields, fn ($f) => $f['is_base'] === true);
+    $baseFields = array_filter($fields, fn ($f) => $f['locked'] === true);
     $baseKeys = array_column(array_values($baseFields), 'key');
 
     expect($baseKeys)->toContain('start_date')
@@ -62,24 +61,17 @@ it('returns base fields from the TicketType enum marked as is_base true', functi
         ->toContain('reason');
 });
 
-it('returns custom fields from the database marked as is_base false', function () {
+it('returns the form designed on the category, in designed order', function () {
     $category = TicketCategory::create([
         'tenant_id' => $this->employee->tenant_id,
         'name' => 'General',
         'color' => '#000000',
         'is_active' => true,
         'ticket_type' => TicketType::General->value,
-    ]);
-
-    TicketTypeCustomField::create([
-        'tenant_id' => $this->employee->tenant_id,
-        'ticket_type' => TicketType::General->value,
-        'field_key' => 'priority_level',
-        'label' => 'Priority Level',
-        'type' => 'select',
-        'options' => [['value' => 'low', 'label' => 'Low'], ['value' => 'high', 'label' => 'High']],
-        'is_required' => true,
-        'sort_order' => 0,
+        'form_fields' => [
+            ['key' => 'level', 'label' => 'Level', 'type' => 'select', 'required' => true, 'width' => 'half', 'options' => [['value' => 'low', 'label' => 'Low'], ['value' => 'high', 'label' => 'High']]],
+            ['key' => 'subject', 'label' => 'Subject', 'type' => 'text', 'required' => false, 'width' => 'full'],
+        ],
     ]);
 
     $fields = $this->actingAs($this->employee, 'sanctum')
@@ -87,15 +79,13 @@ it('returns custom fields from the database marked as is_base false', function (
         ->assertSuccessful()
         ->json('data.fields');
 
-    $customField = collect($fields)->firstWhere('key', 'priority_level');
-
-    expect($customField)->not->toBeNull()
-        ->and($customField['is_base'])->toBeFalse()
-        ->and($customField['type'])->toBe('select')
-        ->and($customField['options'])->toHaveCount(2);
+    expect(array_column($fields, 'key'))->toBe(['level', 'subject'])
+        ->and($fields[0]['locked'])->toBeFalse()
+        ->and($fields[0]['options'])->toHaveCount(2)
+        ->and($fields[1]['required'])->toBeTrue(); // subject is always required
 });
 
-it('returns only subject and description for General type with no custom fields', function () {
+it('returns the default subject, description, priority and attachments form when nothing is designed', function () {
     $category = TicketCategory::create([
         'tenant_id' => $this->employee->tenant_id,
         'name' => 'General',
@@ -109,9 +99,7 @@ it('returns only subject and description for General type with no custom fields'
         ->assertSuccessful()
         ->json('data.fields');
 
-    expect($fields)->toHaveCount(2)
-        ->and($fields[0]['key'])->toBe('subject')
-        ->and($fields[1]['key'])->toBe('description');
+    expect(array_column($fields, 'key'))->toBe(['subject', 'description', 'priority_id', 'attachments']);
 });
 
 it('returns 404 for form when category belongs to a different tenant', function () {

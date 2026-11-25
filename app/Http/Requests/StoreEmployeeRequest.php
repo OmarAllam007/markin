@@ -49,6 +49,7 @@ class StoreEmployeeRequest extends FormRequest
             // Employee settings
             'department_id' => ['nullable', 'integer', 'exists:departments,id'],
             'location_id' => ['nullable', 'integer', 'exists:locations,id'],
+            'direct_manager_id' => ['nullable', 'integer', Rule::exists('employees', 'id')->where('tenant_id', $this->user()->current_tenant_id)],
             'check_biometrics' => ['boolean'],
             'send_reminders' => ['boolean'],
             'allow_remote_checkin' => ['boolean'],

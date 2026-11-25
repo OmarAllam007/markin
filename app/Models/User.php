@@ -98,6 +98,11 @@ class User extends Authenticatable implements MustVerifyEmail
         return Tenant::whereIn('id', array_unique($allIds))->orderBy('name')->get();
     }
 
+    public function assignedTickets(): HasMany
+    {
+        return $this->hasMany(Ticket::class, 'technician_id');
+    }
+
     public function permissions(): HasMany
     {
         return $this->hasMany(UserPermission::class);

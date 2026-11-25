@@ -1,13 +1,13 @@
 <script setup lang="ts">
-import { index, create, edit, destroy } from '@/routes/ticketing/admin/categories';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import { watch } from 'vue';
+import { index, create, edit, destroy } from '@/routes/ticketing/admin/categories';
 
 type CategoryRow = {
     id: number;
     name: string;
-    name_ar: string | null;
+    name_translations: Record<string, string> | null;
     color: string;
     icon: string | null;
     is_active: boolean;
@@ -33,7 +33,11 @@ const filterForm = useForm({ search: props.filters?.search ?? '' });
 
 const submitFilters = () => {
     const q: Record<string, string> = {};
-    if (filterForm.search) q.search = filterForm.search;
+
+    if (filterForm.search) {
+q.search = filterForm.search;
+}
+
     filterForm.get(index.url({ query: q }), { preserveState: true, replace: true, only: ['categories', 'filters'] });
 };
 
@@ -41,7 +45,10 @@ const debouncedSubmit = useDebounceFn(submitFilters, 400);
 watch(() => filterForm.search, () => debouncedSubmit());
 
 const removeCategory = (c: CategoryRow) => {
-    if (!window.confirm(`Delete category "${c.name}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete category "${c.name}"? This cannot be undone.`)) {
+return;
+}
+
     router.delete(destroy.url({ category: c.id }));
 };
 </script>
@@ -104,9 +111,9 @@ const removeCategory = (c: CategoryRow) => {
                                         <div>
                                             <div class="fw-bold text-gray-800">{{ c.name }}</div>
                                             <div
-                                                v-if="c.name_ar"
+                                                v-if="Object.values(c.name_translations ?? {}).some(Boolean)"
                                                 class="text-muted fs-7"
-                                            >{{ c.name_ar }}</div>
+                                            >{{ Object.values(c.name_translations ?? {}).filter(Boolean).join(' · ') }}</div>
                                         </div>
                                     </div>
                                 </td>

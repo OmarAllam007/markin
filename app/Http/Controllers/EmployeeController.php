@@ -133,7 +133,7 @@ class EmployeeController extends Controller
                 'job_title_ar', 'job_title_en', 'employee_number',
                 'social_security_number', 'id_number',
                 'working_start_date', 'contract_end_date', 'contract_type', 'status',
-                'department_id', 'location_id',
+                'department_id', 'direct_manager_id', 'location_id',
                 'check_biometrics', 'send_reminders',
                 'allow_remote_checkin', 'allow_any_location_checkin',
                 'work_shift_id', 'device_name',
@@ -193,6 +193,7 @@ class EmployeeController extends Controller
             'job_title',
             'join_date',
             'id_number',
+            'direct_manager_number',
         ];
 
         foreach ($headers as $col => $header) {
@@ -203,9 +204,9 @@ class EmployeeController extends Controller
         }
 
         $examples = [
-            ['EMP001', 'John Smith', 'جون سميث', '+966 501234567', 'john@example.com', 'Software Engineer', '2024-01-15', '1234567890'],
-            ['EMP002', 'Jane Doe', 'جين دو', '+966 502345678', 'jane@example.com', 'HR Manager', '2024-02-01', '0987654321'],
-            ['EMP003', 'Ahmed Ali', 'أحمد علي', '+966 503456789', 'ahmed@example.com', 'Accountant', '2024-03-10', '1122334455'],
+            ['EMP001', 'John Smith', 'جون سميث', '+966 501234567', 'john@example.com', 'Software Engineer', '2024-01-15', '1234567890', ''],
+            ['EMP002', 'Jane Doe', 'جين دو', '+966 502345678', 'jane@example.com', 'HR Manager', '2024-02-01', '0987654321', 'EMP001'],
+            ['EMP003', 'Ahmed Ali', 'أحمد علي', '+966 503456789', 'ahmed@example.com', 'Accountant', '2024-03-10', '1122334455', 'EMP001'],
         ];
 
         foreach ($examples as $rowIndex => $row) {
@@ -276,6 +277,8 @@ class EmployeeController extends Controller
             ->all();
 
         $dataRows = array_slice($rows, 1);
+        // Linked after every row exists, so a manager can be any existing employee or a row in this file.
+        $managerLinks = [];
         $imported = 0;
         $skipped = 0;
         $errors = [];
@@ -380,8 +383,13 @@ class EmployeeController extends Controller
                 }
             }
 
-            Employee::create($employee);
+            $created = Employee::create($employee);
             $imported++;
+
+            $managerNumber = isset($columnMap['direct_manager_number']) ? trim((string) ($row[$columnMap['direct_manager_number']] ?? '')) : '';
+            if ($managerNumber !== '') {
+                $managerLinks[] = [$created, $managerNumber, $rowNum];
+            }
 
             // Track newly created records so within-file duplicates are caught on subsequent rows
             if ($mobileKey !== '') {
@@ -392,6 +400,21 @@ class EmployeeController extends Controller
             }
             if ($email !== '') {
                 $existingEmails[strtolower($email)] = true;
+            }
+        }
+
+        if ($managerLinks) {
+            $byNumber = Employee::where('tenant_id', $tenantId)->whereNotNull('employee_number')
+                ->get(['id', 'employee_number'])
+                ->keyBy(fn ($e) => strtolower(trim($e->employee_number)));
+
+            foreach ($managerLinks as [$created, $managerNumber, $rowNum]) {
+                $manager = $byNumber->get(strtolower($managerNumber));
+                if (! $manager || $manager->id === $created->id) {
+                    $errors[] = "Row {$rowNum}: imported, but direct_manager_number \"{$managerNumber}\" ".($manager ? 'is the employee themself' : 'was not found').'. Set the manager on the employee page.';
+                } else {
+                    $created->update(['direct_manager_id' => $manager->id]);
+                }
             }
         }
 
@@ -459,7 +482,9 @@ class EmployeeController extends Controller
             ],
             'departments' => Department::where('tenant_id', $tenantId)
                 ->when($deptIds !== null, fn ($q) => $q->whereIn('id', $deptIds))
-                ->orderBy('name')->get(['id', 'name']),
+                ->with('manager:id,english_name')
+                ->orderBy('name')->get(['id', 'name', 'manager_employee_id']),
+            'managers' => Employee::where('tenant_id', $tenantId)->orderBy('english_name')->get(['id', 'english_name', 'employee_number']),
             'locations' => Location::where('tenant_id', $tenantId)
                 ->when($locIds !== null, fn ($q) => $q->whereIn('id', $locIds))
                 ->orderBy('name')->get(['id', 'name']),

@@ -1,21 +1,21 @@
 <script setup lang="ts">
-import { update, show } from '@/routes/ticketing/tickets';
 import { Head, Link, useForm } from '@inertiajs/vue3';
 import { computed } from 'vue';
+import { update, show } from '@/routes/ticketing/tickets';
 
 type Option = { value: string; label: string };
-type CategoryOption = { id: number; name: string; color: string; icon: string | null; subcategories: { id: number; category_id: number; name: string }[] };
+type CategoryOption = { id: number; name: string; color: string; icon: string | null; subcategories: { id: number; category_id: number; name: string; items: { id: number; name: string }[] }[] };
 type PriorityOption = { id: number; name: string; color: string };
 type SlaOption = { id: number; name: string };
-type GroupOption = { id: number; name: string };
-type TechnicianOption = { id: number; name: string };
+type GroupOption = { id: number; name: string; members: { id: number; name: string }[] };
 
 type TicketEdit = {
     id: number;
     subject: string;
-    description: string;
+    description: string | null;
     category_id: number;
     subcategory_id: number | null;
+    item_id: number | null;
     type: string | null;
     status: string;
     priority_id: number | null;
@@ -33,16 +33,15 @@ const props = defineProps<{
     priorities: PriorityOption[];
     slas: SlaOption[];
     groups: GroupOption[];
-    technicians: TechnicianOption[];
     statuses: Option[];
-    types: Option[];
 }>();
 
 const form = useForm({
     subject: props.ticket.subject,
-    description: props.ticket.description,
+    description: props.ticket.description ?? '',
     category_id: props.ticket.category_id,
     subcategory_id: props.ticket.subcategory_id ?? '',
+    item_id: props.ticket.item_id ?? '',
     type: props.ticket.type ?? '',
     status: props.ticket.status,
     priority_id: props.ticket.priority_id ?? '',
@@ -54,10 +53,21 @@ const form = useForm({
 });
 
 const availableSubcategories = computed(() => {
-    if (!form.category_id) return [];
+    if (!form.category_id) {
+return [];
+}
+
     const cat = props.categories.find(c => c.id === Number(form.category_id));
+
     return cat?.subcategories ?? [];
 });
+
+const availableItems = computed(() =>
+    availableSubcategories.value.find(s => s.id === Number(form.subcategory_id))?.items ?? [],
+);
+
+// Only members of the chosen technician group can be assigned.
+const technicians = computed(() => props.groups.find(g => g.id === Number(form.group_id))?.members ?? []);
 
 const submit = () => form.put(update.url({ ticket: props.ticket.id }));
 </script>
@@ -103,7 +113,7 @@ const submit = () => form.put(update.url({ ticket: props.ticket.id }));
                         </div>
                         <div class="col-md-12">
                             <label
-                                class="form-label required"
+                                class="form-label"
                                 for="tk-desc"
                             >Description</label>
                             <textarea
@@ -142,20 +152,47 @@ const submit = () => form.put(update.url({ ticket: props.ticket.id }));
                             class="col-md-6"
                         >
                             <label
-                                class="form-label"
+                                class="form-label required"
                                 for="tk-subcat"
                             >Subcategory</label>
                             <select
                                 id="tk-subcat"
                                 v-model="form.subcategory_id"
                                 class="form-select"
+                                :class="{ 'is-invalid': form.errors.subcategory_id }"
+                                @change="form.item_id = ''"
                             >
-                                <option value="">None</option>
+                                <option value="">Select subcategory…</option>
                                 <option
                                     v-for="s in availableSubcategories"
                                     :key="s.id"
                                     :value="s.id"
                                 >{{ s.name }}</option>
+                            </select>
+                            <div
+                                v-if="form.errors.subcategory_id"
+                                class="invalid-feedback"
+                            >{{ form.errors.subcategory_id }}</div>
+                        </div>
+                        <div
+                            v-if="availableItems.length"
+                            class="col-md-6"
+                        >
+                            <label
+                                class="form-label"
+                                for="tk-item"
+                            >Item</label>
+                            <select
+                                id="tk-item"
+                                v-model="form.item_id"
+                                class="form-select"
+                            >
+                                <option value="">None</option>
+                                <option
+                                    v-for="i in availableItems"
+                                    :key="i.id"
+                                    :value="i.id"
+                                >{{ i.name }}</option>
                             </select>
                         </div>
                         <div class="col-md-4">
@@ -213,39 +250,50 @@ const submit = () => form.put(update.url({ ticket: props.ticket.id }));
                         </div>
                         <div class="col-md-4">
                             <label
-                                class="form-label"
+                                class="form-label required"
                                 for="tk-group"
-                            >Group</label>
+                            >Technician Group</label>
                             <select
                                 id="tk-group"
                                 v-model="form.group_id"
                                 class="form-select"
+                                :class="{ 'is-invalid': form.errors.group_id }"
+                                @change="form.technician_id = ''"
                             >
-                                <option value="">None</option>
+                                <option value="">Select group…</option>
                                 <option
                                     v-for="g in groups"
                                     :key="g.id"
                                     :value="g.id"
                                 >{{ g.name }}</option>
                             </select>
+                            <div
+                                v-if="form.errors.group_id"
+                                class="invalid-feedback"
+                            >{{ form.errors.group_id }}</div>
                         </div>
                         <div class="col-md-4">
                             <label
-                                class="form-label"
+                                class="form-label required"
                                 for="tk-tech"
-                            >Assignee</label>
+                            >Technician</label>
                             <select
                                 id="tk-tech"
                                 v-model="form.technician_id"
                                 class="form-select"
+                                :class="{ 'is-invalid': form.errors.technician_id }"
                             >
-                                <option value="">Unassigned</option>
+                                <option value="">Select technician…</option>
                                 <option
                                     v-for="u in technicians"
                                     :key="u.id"
                                     :value="u.id"
                                 >{{ u.name }}</option>
                             </select>
+                            <div
+                                v-if="form.errors.technician_id"
+                                class="invalid-feedback"
+                            >{{ form.errors.technician_id }}</div>
                         </div>
                         <div class="col-md-4">
                             <label

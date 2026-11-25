@@ -96,7 +96,7 @@ class SubcategoryController extends Controller
             ->get(['id', 'name']);
 
         return Inertia::render('ticketing/admin/subcategories/Edit', [
-            'subcategory' => $subcategory->only(['id', 'category_id', 'name', 'name_ar', 'description', 'is_active']),
+            'subcategory' => $subcategory->only(['id', 'category_id', 'name', 'name_translations', 'description', 'is_active']),
             'categories' => $categories,
         ]);
     }

@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { update, index } from '@/routes/ticketing/admin/priorities';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { update, index } from '@/routes/ticketing/admin/priorities';
 
 type PriorityModel = { id: number; name: string; color: string; icon: string | null; sla_hours: number | null; is_default: boolean; sort_order: number };
 

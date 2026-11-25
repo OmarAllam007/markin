@@ -4,177 +4,229 @@ namespace App\Http\Controllers\Ticketing;
 
 use App\Enums\PermissionAction;
 use App\Enums\PermissionModule;
+use App\Enums\RequestStatusType;
+use App\Enums\TicketGroupType;
 use App\Enums\TicketStatus;
-use App\Enums\TicketType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\StoreTicketRequest;
 use App\Http\Requests\Ticketing\UpdateTicketRequest;
-use App\Models\Attachment;
 use App\Models\Employee;
+use App\Models\RequestStatus;
 use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketCategory;
 use App\Models\TicketGroup;
+use App\Models\TicketItem;
 use App\Models\TicketPriority;
 use App\Models\TicketSla;
-use App\Models\TicketTypeCustomField;
-use App\Models\User;
+use App\Models\TicketSubcategory;
+use App\Services\TicketAccess;
+use App\Services\TicketMessageService;
+use App\Services\TicketService;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class TicketController extends Controller
 {
+    private const FILTERS = ['search', 'request_status_id', 'status', 'category_id', 'priority_id', 'group_id', 'technician_id', 'from', 'to', 'overdue'];
+
     public function index(Request $request): Response
     {
-        $request->validate([
-            'search' => ['nullable', 'string', 'max:100'],
-            'status' => ['nullable', 'string'],
-            'category_id' => ['nullable', 'integer'],
-            'priority_id' => ['nullable', 'integer'],
-        ]);
+        $tenantId = $this->authorizeTicketList($request);
+        $user = $request->user();
+        $seesAll = TicketAccess::seesAll($user, $tenantId);
 
-        $tenantId = $request->user()->current_tenant_id;
-
-        $this->authorizeTicketAccess($request, $tenantId, PermissionAction::View);
-
-        $tickets = Ticket::query()
-            ->where('tenant_id', $tenantId)
+        $tickets = $this->filteredTickets($request, $tenantId)
             ->with([
                 'requester:id,name',
+                'employee:id,english_name',
                 'category:id,name,color',
                 'priority:id,name,color',
                 'technician:id,name',
+                'group:id,name',
+                'requestStatus:id,name,color',
             ])
-            ->when($request->search, fn ($q, $search) => $q->where('subject', 'like', "%{$search}%"))
-            ->when($request->status, fn ($q, $status) => $q->where('status', $status))
-            ->when($request->category_id, fn ($q, $id) => $q->where('category_id', $id))
-            ->when($request->priority_id, fn ($q, $id) => $q->where('priority_id', $id))
-            ->orderByDesc('created_at')
             ->paginate(15)
             ->withQueryString();
 
-        $categories = TicketCategory::query()
+        // Technicians filter within their own groups.
+        $groups = TicketGroup::query()
             ->where('tenant_id', $tenantId)
-            ->where('is_active', true)
+            ->where('type', TicketGroupType::Technician)
+            ->when(! $seesAll, fn ($q) => $q->whereIn('id', TicketAccess::groupIds($user, $tenantId)))
+            ->with('members:id,name')
             ->orderBy('name')
             ->get(['id', 'name']);
 
-        $priorities = TicketPriority::query()
-            ->where('tenant_id', $tenantId)
-            ->orderBy('sort_order')
-            ->get(['id', 'name', 'color']);
-
         return Inertia::render('ticketing/tickets/Index', [
             'tickets' => $tickets,
-            'categories' => $categories,
-            'priorities' => $priorities,
+            'categories' => TicketCategory::where('tenant_id', $tenantId)->where('is_active', true)->orderBy('name')->get(['id', 'name']),
+            'priorities' => TicketPriority::where('tenant_id', $tenantId)->orderBy('sort_order')->get(['id', 'name', 'color']),
+            'requestStatuses' => RequestStatus::forTenant($tenantId)->map->only(['id', 'name', 'color', 'type']),
+            'groups' => $groups->map->only(['id', 'name']),
+            'technicians' => $groups->flatMap->members->unique('id')->sortBy('name')->values()->map->only(['id', 'name']),
             'statuses' => collect(TicketStatus::cases())->map(fn ($s) => ['value' => $s->value, 'label' => $s->label()]),
-            'filters' => $request->only(['search', 'status', 'category_id', 'priority_id']),
+            'filters' => $request->only(self::FILTERS),
+            'seesAll' => $seesAll,
+            'canCreate' => $user->canPerform(Tenant::findOrFail($tenantId), PermissionModule::Ticketing, PermissionAction::Create),
         ]);
     }
 
-    public function create(Request $request): Response
+    /** The current list, every page, as a spreadsheet. */
+    public function export(Request $request): StreamedResponse
+    {
+        $tenantId = $this->authorizeTicketList($request);
+
+        $sheet = (new Spreadsheet)->getActiveSheet();
+        $sheet->fromArray(['#', 'Subject', 'Status', 'Approval', 'Service', 'Priority', 'Requester', 'Group', 'Technician', 'Created', 'Due', 'Overdue', 'Resolved']);
+        $sheet->getStyle('1:1')->getFont()->setBold(true);
+        $sheet->freezePane('A2');
+
+        $row = 2;
+        $this->filteredTickets($request, $tenantId)
+            ->with(['requester:id,name', 'employee:id,english_name', 'category:id,name', 'subcategory:id,name', 'item:id,name', 'priority:id,name', 'technician:id,name', 'group:id,name', 'requestStatus:id,name'])
+            ->chunk(500, function ($tickets) use ($sheet, &$row) {
+                foreach ($tickets as $t) {
+                    $sheet->fromArray([
+                        $t->id,
+                        $t->subject,
+                        $t->requestStatus?->name,
+                        $t->status->label(),
+                        collect([$t->category?->name, $t->subcategory?->name, $t->item?->name])->filter()->join(' › '),
+                        $t->priority?->name,
+                        $t->requester?->name ?? $t->employee?->english_name,
+                        $t->group?->name,
+                        $t->technician?->name,
+                        $t->created_at?->format('Y-m-d H:i'),
+                        $t->due_date?->format('Y-m-d H:i'),
+                        $t->overdue ? 'Yes' : 'No',
+                        $t->resolve_date?->format('Y-m-d H:i'),
+                    ], null, "A{$row}");
+                    $row++;
+                }
+            });
+
+        foreach (range('A', 'M') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+
+        return response()->streamDownload(
+            fn () => (new Xlsx($sheet->getParent()))->save('php://output'),
+            'tickets-'.now()->format('Y-m-d').'.xlsx',
+            ['Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'],
+        );
+    }
+
+    /** Role permission or technician group membership opens the list; the query narrows what each one sees. */
+    private function authorizeTicketList(Request $request): int
+    {
+        $tenantId = $request->user()->current_tenant_id;
+        abort_if($tenantId === null, 403);
+        abort_unless(TicketAccess::seesAll($request->user(), $tenantId) || TicketAccess::isTechnician($request->user(), $tenantId), 403, 'You do not have permission to perform this action.');
+
+        return $tenantId;
+    }
+
+    private function filteredTickets(Request $request, int $tenantId): Builder
+    {
+        $request->validate([
+            'search' => ['nullable', 'string', 'max:100'],
+            'request_status_id' => ['nullable', 'regex:/^(\d+|open|on_hold|resolved|closed|cancelled|active)$/'],
+            'status' => ['nullable', 'string'],
+            'category_id' => ['nullable', 'integer'],
+            'priority_id' => ['nullable', 'integer'],
+            'group_id' => ['nullable', 'integer'],
+            'technician_id' => ['nullable', 'regex:/^(\d+|me|none)$/'],
+            'from' => ['nullable', 'date'],
+            'to' => ['nullable', 'date'],
+            'overdue' => ['nullable', 'boolean'],
+        ]);
+        $user = $request->user();
+
+        return TicketAccess::scope(Ticket::query()->where('tenant_id', $tenantId), $user, $tenantId)
+            ->when($request->search, function ($q, $search) {
+                $id = ltrim($search, '#');
+                $q->where(fn ($q) => $q
+                    ->where('subject', 'like', "%{$search}%")
+                    ->when(ctype_digit($id), fn ($q) => $q->orWhere('id', (int) $id))
+                    ->orWhereHas('employee', fn ($e) => $e->where('english_name', 'like', "%{$search}%")->orWhere('arabic_name', 'like', "%{$search}%")->orWhere('employee_number', $search))
+                    ->orWhereHas('requester', fn ($u) => $u->where('name', 'like', "%{$search}%")));
+            })
+            // A status, a whole type (e.g. every on-hold status), or "active" = not resolved/closed/cancelled.
+            ->when($request->request_status_id, fn ($q, $value) => match (true) {
+                ctype_digit((string) $value) => $q->where('request_status_id', $value),
+                $value === 'active' => $q->whereHas('requestStatus', fn ($s) => $s->whereIn('type', [RequestStatusType::Open, RequestStatusType::OnHold])),
+                default => $q->whereHas('requestStatus', fn ($s) => $s->where('type', $value)),
+            })
+            ->when($request->status, fn ($q, $status) => $q->where('status', $status))
+            ->when($request->category_id, fn ($q, $id) => $q->where('category_id', $id))
+            ->when($request->priority_id, fn ($q, $id) => $q->where('priority_id', $id))
+            ->when($request->group_id, fn ($q, $id) => $q->where('group_id', $id))
+            ->when($request->technician_id, fn ($q, $value) => match ($value) {
+                'me' => $q->where('technician_id', $user->id),
+                'none' => $q->whereNull('technician_id'),
+                default => $q->where('technician_id', $value),
+            })
+            ->when($request->from, fn ($q, $date) => $q->whereDate('created_at', '>=', $date))
+            ->when($request->to, fn ($q, $date) => $q->whereDate('created_at', '<=', $date))
+            ->when($request->boolean('overdue'), fn ($q) => $q->where('overdue', true))
+            ->orderByDesc('created_at');
+    }
+
+    public function create(Request $request, TicketService $tickets): Response
     {
         $tenantId = $request->user()->current_tenant_id;
 
         $this->authorizeTicketAccess($request, $tenantId, PermissionAction::Create);
-
-        $customFieldsByType = TicketTypeCustomField::query()
-            ->where('tenant_id', $tenantId)
-            ->orderBy('sort_order')
-            ->get()
-            ->groupBy(fn ($f) => $f->ticket_type->value);
 
         return Inertia::render('ticketing/tickets/Create', [
             'categories' => TicketCategory::query()
                 ->where('tenant_id', $tenantId)
                 ->where('is_active', true)
-                ->with('subcategories:id,category_id,name')
+                ->with([
+                    'subcategories' => fn ($q) => $q->where('is_active', true)->select('id', 'category_id', 'name'),
+                    'subcategories.items' => fn ($q) => $q->where('is_active', true)->select('id', 'subcategory_id', 'name'),
+                ])
                 ->orderBy('name')
-                ->get(['id', 'name', 'color', 'icon', 'ticket_type'])
-                ->map(function ($cat) use ($customFieldsByType) {
-                    $type = $cat->ticket_type;
-                    $catArr = $cat->toArray();
-                    $catArr['base_fields'] = $type ? $type->baseFields() : [];
-                    $catArr['custom_fields'] = $type
-                        ? ($customFieldsByType->get($type->value)?->map->only(['field_key', 'label', 'type', 'options', 'is_required', 'sort_order'])->values()->toArray() ?? [])
-                        : [];
-
-                    return $catArr;
-                }),
+                ->get(['id', 'name', 'color', 'icon', 'ticket_type']),
             'priorities' => TicketPriority::query()
                 ->where('tenant_id', $tenantId)
                 ->orderBy('sort_order')
-                ->get(['id', 'name', 'color']),
-            'slas' => TicketSla::query()
-                ->where('tenant_id', $tenantId)
-                ->where('is_active', true)
-                ->get(['id', 'name', 'first_response_hours', 'resolve_hours']),
-            'groups' => TicketGroup::query()
-                ->where('tenant_id', $tenantId)
-                ->where('is_active', true)
-                ->get(['id', 'name']),
-            'technicians' => User::query()
-                ->whereHas('tenants', fn ($q) => $q->where('tenant_id', $tenantId))
-                ->get(['id', 'name']),
-            'employees' => Employee::query()
-                ->where('tenant_id', $tenantId)
-                ->orderBy('english_name')
-                ->get(['id', 'english_name', 'arabic_name']),
-            'types' => collect(TicketType::cases())->map(fn ($t) => ['value' => $t->value, 'label' => $t->label()]),
+                ->get(['id', 'name', 'color', 'is_default']),
+            // Re-resolved on partial reload as the user walks the service hierarchy.
+            'formFields' => function () use ($request, $tenantId, $tickets) {
+                $category = TicketCategory::where('tenant_id', $tenantId)->find($request->integer('category_id'));
+
+                return $category ? TicketService::localize($tickets->formFields(
+                    $category,
+                    TicketSubcategory::where('category_id', $category->id)->find($request->integer('subcategory_id')),
+                    TicketItem::where('tenant_id', $tenantId)->find($request->integer('item_id')),
+                ), app()->getLocale()) : [];
+            },
         ]);
     }
 
-    public function store(StoreTicketRequest $request): RedirectResponse
+    public function store(StoreTicketRequest $request, TicketService $tickets): RedirectResponse
     {
         $tenantId = $request->user()->current_tenant_id;
-        $userId = $request->user()->id;
 
         $this->authorizeTicketAccess($request, $tenantId, PermissionAction::Create);
 
-        $ticket = DB::transaction(function () use ($request, $tenantId, $userId): Ticket {
-            $category = TicketCategory::find($request->validated('category_id'));
-
-            $ticket = Ticket::create([
-                ...$request->safe()->except('attachments'),
-                'tenant_id' => $tenantId,
-                'requester_id' => $userId,
-                'creator_id' => $userId,
-                'source' => $request->validated('source', 'web'),
-                'type' => $category?->ticket_type ?? $request->validated('type'),
-                'status' => TicketStatus::Submitted,
-                'submitted_at' => now(),
-            ]);
-
-            if ($request->hasFile('attachments')) {
-                foreach ($request->file('attachments') as $file) {
-                    $path = $file->store('ticketing/attachments', 'local');
-
-                    Attachment::create([
-                        'attachable_type' => Ticket::class,
-                        'attachable_id' => $ticket->id,
-                        'file_path' => $path,
-                        'file_name' => $file->getClientOriginalName(),
-                        'file_size' => $file->getSize(),
-                        'mime_type' => $file->getMimeType(),
-                        'uploaded_by' => $userId,
-                    ]);
-                }
-            }
-
-            return $ticket;
-        });
+        $ticket = $tickets->create($request->validated(), $request->user(), $tenantId, $request->file('attachments', []));
 
         return redirect()->route('ticketing.tickets.show', $ticket)
             ->with('success', 'Ticket submitted successfully.');
     }
 
-    public function show(Request $request, Ticket $ticket): Response
+    public function show(Request $request, Ticket $ticket, TicketService $tickets): Response
     {
-        $this->authorizeTicketAccess($request, $ticket->tenant_id, PermissionAction::View);
+        abort_unless(TicketAccess::canView($request->user(), $ticket), 403);
 
         $ticket->load([
             'requester:id,name',
@@ -182,18 +234,54 @@ class TicketController extends Controller
             'employee:id,english_name,arabic_name',
             'technician:id,name',
             'group:id,name',
-            'category:id,name,color,icon',
-            'subcategory:id,name',
+            // Full catalog rows: formFields() needs ticket_type and the form_fields config.
+            'category',
+            'subcategory',
+            'item',
             'priority:id,name,color',
             'sla:id,name,first_response_hours,resolve_hours',
+            'approvals' => fn ($q) => $q->orderBy('stage_order')->orderBy('id'),
             'approvals.approver:id,name',
-            'approvals.delegatedTo:id,name',
+            'approvals.approverEmployee:id,english_name,email',
+            'approvals.requestedBy:id,name',
+            'approvals.attachments:id,attachable_type,attachable_id,file_name,file_size',
             'attachments.uploader:id,name',
             'linkedTickets:id,subject,status',
+            'requestStatus:id,name,type,color',
+            'messages' => fn ($q) => $q->orderBy('id'),
+            'messages.user:id,name',
+            'messages.employee:id,english_name',
+            'messages.requestStatus:id,name,color',
+            'messages.attachments:id,attachable_type,attachable_id,file_name,file_size',
         ]);
+
+        $user = $request->user();
+        $isStaff = $ticket->technician_id === $user->id || $user->isAdminOf(Tenant::findOrFail($ticket->tenant_id));
+        $isRequester = TicketMessageService::isRequester($user, $ticket);
+        $ccNames = Employee::whereIn('id', $ticket->messages->pluck('cc')->flatten()->filter()->unique())->pluck('english_name', 'id');
+        $ticket->messages->each(fn ($m) => $m->setAttribute('cc_names', collect($m->cc)->map(fn ($id) => $ccNames[$id] ?? null)->filter()->values()));
+
+        $fields = $ticket->category
+            ? TicketService::localize($tickets->formFields($ticket->category, $ticket->subcategory, $ticket->item), app()->getLocale())
+            : [];
 
         return Inertia::render('ticketing/tickets/Show', [
             'ticket' => $ticket,
+            // Labels for form_data, in the order the form was designed.
+            'detailFields' => collect($fields)
+                ->reject(fn ($f) => in_array($f['key'], TicketService::STANDARD_KEYS, true))
+                ->map(fn ($f) => ['key' => $f['key'], 'label' => $f['label'], 'options' => $f['options'] ?? null])
+                ->values(),
+            'logs' => $ticket->logs()->with(['user:id,name', 'employee:id,english_name'])->latest('id')->get(),
+            'canRequestApproval' => $isStaff,
+            'canEdit' => TicketAccess::canEdit($user, $ticket),
+            'canReply' => $isStaff || $isRequester,
+            // Resolving is for the technician side.
+            'replyStatuses' => TicketMessageService::statusesFor($ticket->tenant_id, $isRequester && ! $isStaff)->map->only(['id', 'name', 'type', 'color']),
+            'approverOptions' => fn () => Employee::where('tenant_id', $ticket->tenant_id)
+                ->whereNotNull('email')->where('email', '!=', '')
+                ->orderBy('english_name')
+                ->get(['id', 'english_name', 'email']),
             'statuses' => collect(TicketStatus::cases())->map(fn ($s) => ['value' => $s->value, 'label' => $s->label(), 'color' => $s->color()]),
         ]);
     }
@@ -202,20 +290,20 @@ class TicketController extends Controller
     {
         $tenantId = $request->user()->current_tenant_id;
 
-        $this->authorizeTicketAccess($request, $ticket->tenant_id, PermissionAction::Edit);
+        abort_unless(TicketAccess::canEdit($request->user(), $ticket), 403);
 
         $ticket->load(['category:id,name', 'subcategory:id,name', 'priority:id,name', 'sla:id,name', 'group:id,name']);
 
         return Inertia::render('ticketing/tickets/Edit', [
             'ticket' => $ticket->only([
                 'id', 'subject', 'description', 'category_id', 'subcategory_id',
-                'type', 'status', 'priority_id', 'sla_id', 'group_id',
+                'item_id', 'type', 'status', 'priority_id', 'sla_id', 'group_id',
                 'technician_id', 'employee_id', 'due_date', 'form_data',
             ]),
             'categories' => TicketCategory::query()
                 ->where('tenant_id', $tenantId)
                 ->where('is_active', true)
-                ->with('subcategories:id,category_id,name')
+                ->with('subcategories:id,category_id,name', 'subcategories.items:id,subcategory_id,name')
                 ->orderBy('name')
                 ->get(['id', 'name', 'color', 'icon']),
             'priorities' => TicketPriority::query()
@@ -228,10 +316,9 @@ class TicketController extends Controller
                 ->get(['id', 'name']),
             'groups' => TicketGroup::query()
                 ->where('tenant_id', $tenantId)
+                ->where('type', TicketGroupType::Technician)
                 ->where('is_active', true)
-                ->get(['id', 'name']),
-            'technicians' => User::query()
-                ->whereHas('tenants', fn ($q) => $q->where('tenant_id', $tenantId))
+                ->with('members:id,name')
                 ->get(['id', 'name']),
             'statuses' => collect(TicketStatus::cases())->map(fn ($s) => ['value' => $s->value, 'label' => $s->label()]),
         ]);
@@ -239,7 +326,7 @@ class TicketController extends Controller
 
     public function update(UpdateTicketRequest $request, Ticket $ticket): RedirectResponse
     {
-        $this->authorizeTicketAccess($request, $ticket->tenant_id, PermissionAction::Edit);
+        abort_unless(TicketAccess::canEdit($request->user(), $ticket), 403);
 
         $ticket->update($request->validated());
 

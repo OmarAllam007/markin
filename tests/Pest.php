@@ -1,5 +1,10 @@
 <?php
 
+use App\Models\Tenant;
+use App\Models\TicketCategory;
+use App\Models\TicketGroup;
+use App\Models\TicketSubcategory;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -47,4 +52,29 @@ expect()->extend('toBeOne', function () {
 function something()
 {
     // ..
+}
+
+/**
+ * Category → subcategory with a technician group (one member) configured on
+ * the category, so tickets can be submitted against it.
+ *
+ * @return array{category: TicketCategory, subcategory: TicketSubcategory, group: TicketGroup, technician: User}
+ */
+function configuredTicketService(Tenant $tenant, array $categoryAttributes = []): array
+{
+    $technician = User::factory()->withTenant($tenant)->create();
+    $group = TicketGroup::create(['tenant_id' => $tenant->id, 'name' => 'IT Desk', 'type' => 'technician', 'is_active' => true]);
+    $group->members()->attach($technician);
+
+    $category = TicketCategory::create([
+        'tenant_id' => $tenant->id,
+        'name' => 'IT Support',
+        'color' => '#000000',
+        'is_active' => true,
+        'group_id' => $group->id,
+        ...$categoryAttributes,
+    ]);
+    $subcategory = $category->subcategories()->create(['tenant_id' => $tenant->id, 'name' => 'Hardware', 'is_active' => true]);
+
+    return compact('category', 'subcategory', 'group', 'technician');
 }

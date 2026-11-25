@@ -3,12 +3,13 @@
 namespace App\Http\Controllers\Ticketing;
 
 use App\Enums\PermissionAction;
-use App\Enums\PermissionModule;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\StoreAttachmentRequest;
 use App\Models\Attachment;
-use App\Models\Tenant;
 use App\Models\Ticket;
+use App\Models\TicketApproval;
+use App\Models\TicketMessage;
+use App\Services\TicketAccess;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -18,13 +19,7 @@ class AttachmentController extends Controller
 {
     public function store(StoreAttachmentRequest $request, Ticket $ticket): RedirectResponse
     {
-        abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
-
-        $tenant = Tenant::findOrFail($ticket->tenant_id);
-
-        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, PermissionAction::Edit)) {
-            abort(403, 'You do not have permission to perform this action.');
-        }
+        abort_unless(TicketAccess::canEdit($request->user(), $ticket), 403);
 
         foreach ($request->file('files') as $file) {
             $path = $file->store('ticketing/attachments', 'local');
@@ -68,16 +63,16 @@ class AttachmentController extends Controller
 
     private function authorizeAttachment(Request $request, Attachment $attachment, PermissionAction $action): void
     {
-        abort_if(
-            $attachment->attachable_type !== Ticket::class
-                || $attachment->attachable?->tenant_id !== $request->user()->current_tenant_id,
-            403
-        );
-
-        $tenant = Tenant::findOrFail($attachment->attachable->tenant_id);
-
-        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, $action)) {
-            abort(403, 'You do not have permission to perform this action.');
-        }
+        // Approval request files belong to the approval, which belongs to the ticket.
+        $ticket = match ($attachment->attachable_type) {
+            Ticket::class => $attachment->attachable,
+            TicketApproval::class, TicketMessage::class => $attachment->attachable?->ticket,
+            default => null,
+        };
+        abort_unless($ticket && match ($action) {
+            PermissionAction::View => TicketAccess::canView($request->user(), $ticket),
+            PermissionAction::Delete => TicketAccess::seesAll($request->user(), $ticket->tenant_id, PermissionAction::Delete),
+            default => TicketAccess::canEdit($request->user(), $ticket),
+        }, 403);
     }
 }

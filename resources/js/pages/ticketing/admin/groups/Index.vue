@@ -1,10 +1,10 @@
 <script setup lang="ts">
-import { index, create, edit, destroy } from '@/routes/ticketing/admin/groups';
 import { Head, Link, router, useForm } from '@inertiajs/vue3';
 import { useDebounceFn } from '@vueuse/core';
 import { watch } from 'vue';
+import { index, create, edit, destroy } from '@/routes/ticketing/admin/groups';
 
-type GroupRow = { id: number; name: string; description: string | null; is_active: boolean; tickets_count: number };
+type GroupRow = { id: number; name: string; description: string | null; is_active: boolean; type: string; tickets_count: number; members_count: number };
 type PaginatorLink = { url: string | null; label: string; active: boolean };
 
 const props = defineProps<{
@@ -15,14 +15,21 @@ const props = defineProps<{
 const filterForm = useForm({ search: props.filters?.search ?? '' });
 const submitFilters = () => {
     const q: Record<string, string> = {};
-    if (filterForm.search) q.search = filterForm.search;
+
+    if (filterForm.search) {
+q.search = filterForm.search;
+}
+
     filterForm.get(index.url({ query: q }), { preserveState: true, replace: true, only: ['groups', 'filters'] });
 };
 const debouncedSubmit = useDebounceFn(submitFilters, 400);
 watch(() => filterForm.search, () => debouncedSubmit());
 
 const removeGroup = (g: GroupRow) => {
-    if (!window.confirm(`Delete group "${g.name}"?`)) return;
+    if (!window.confirm(`Delete group "${g.name}"?`)) {
+return;
+}
+
     router.delete(destroy.url({ group: g.id }));
 };
 </script>
@@ -59,6 +66,8 @@ const removeGroup = (g: GroupRow) => {
                         <thead>
                             <tr class="text-start text-gray-500 text-uppercase fs-7 fw-bold">
                                 <th>Name</th>
+                                <th>Type</th>
+                                <th>Members</th>
                                 <th>Tickets</th>
                                 <th>Status</th>
                                 <th class="text-end w-200px">Actions</th>
@@ -77,6 +86,8 @@ const removeGroup = (g: GroupRow) => {
                                         style="max-width: 300px;"
                                     >{{ g.description }}</div>
                                 </td>
+                                <td><span class="badge badge-light-primary text-capitalize">{{ g.type }}</span></td>
+                                <td class="text-gray-700">{{ g.members_count }}</td>
                                 <td class="text-gray-700">{{ g.tickets_count }}</td>
                                 <td>
                                     <span :class="`badge badge-light-${g.is_active ? 'success' : 'danger'}`">
@@ -103,7 +114,7 @@ const removeGroup = (g: GroupRow) => {
                             </tr>
                             <tr v-if="groups.data.length === 0">
                                 <td
-                                    colspan="4"
+                                    colspan="6"
                                     class="text-center text-muted py-10"
                                 >No groups found.</td>
                             </tr>

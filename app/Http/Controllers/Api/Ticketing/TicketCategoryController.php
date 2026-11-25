@@ -6,7 +6,8 @@ use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\Employee;
 use App\Models\TicketCategory;
-use App\Models\TicketTypeCustomField;
+use App\Models\TicketPriority;
+use App\Services\TicketService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -20,18 +21,28 @@ class TicketCategoryController extends Controller
         $categories = TicketCategory::query()
             ->where('tenant_id', $employee->tenant_id)
             ->where('is_active', true)
-            ->withCount(['subcategories' => fn ($q) => $q->where('is_active', true)])
+            ->with([
+                'subcategories' => fn ($q) => $q->where('is_active', true)->orderBy('name'),
+                'subcategories.items' => fn ($q) => $q->where('is_active', true)->orderBy('name'),
+            ])
+            ->orderBy('name')
             ->get()
             ->map(fn (TicketCategory $category) => [
                 'id' => $category->id,
                 'name' => $category->name,
-                'name_ar' => $category->name_ar,
+                'name_translations' => $category->name_translations,
                 'description' => $category->description,
                 'icon' => $category->icon,
                 'color' => $category->color,
                 'ticket_type' => $category->ticket_type?->value,
                 'ticket_type_label' => $category->ticket_type?->label(),
-                'has_subcategories' => $category->subcategories_count > 0,
+                'has_subcategories' => $category->subcategories->isNotEmpty(),
+                'subcategories' => $category->subcategories->map(fn ($sub) => [
+                    'id' => $sub->id,
+                    'name' => $sub->name,
+                    'name_translations' => $sub->name_translations,
+                    'items' => $sub->items->map->only(['id', 'name', 'name_translations'])->values(),
+                ])->values(),
             ]);
 
         return ApiResponse::success('Categories retrieved.', ['categories' => $categories]);
@@ -48,7 +59,7 @@ class TicketCategoryController extends Controller
 
         $subcategories = $category->subcategories()
             ->where('is_active', true)
-            ->get(['id', 'name', 'name_ar', 'description']);
+            ->get(['id', 'name', 'name_translations', 'description']);
 
         if ($subcategories->isNotEmpty()) {
             return ApiResponse::success('Subcategories retrieved.', [
@@ -56,7 +67,7 @@ class TicketCategoryController extends Controller
                 'subcategories' => $subcategories->map(fn ($s) => [
                     'id' => $s->id,
                     'name' => $s->name,
-                    'name_ar' => $s->name_ar,
+                    'name_translations' => $s->name_translations,
                     'description' => $s->description,
                 ]),
             ]);
@@ -68,36 +79,20 @@ class TicketCategoryController extends Controller
         ));
     }
 
-    public static function buildFormPayload(TicketCategory $category, int $tenantId): array
+    /** Same resolved, ordered field list the web form and the designer preview use. */
+    public static function buildFormPayload(TicketCategory $category, int $tenantId, ?int $subcategoryId = null, ?int $itemId = null): array
     {
-        $baseFields = $category->ticket_type
-            ? collect($category->ticket_type->baseFields())->map(fn ($f) => array_merge($f, ['is_base' => true]))
-            : collect();
-
-        $customFields = TicketTypeCustomField::query()
-            ->where('tenant_id', $tenantId)
-            ->when($category->ticket_type, fn ($q) => $q->where('ticket_type', $category->ticket_type->value))
-            ->orderBy('sort_order')
-            ->get()
-            ->map(fn (TicketTypeCustomField $f) => [
-                'key' => $f->field_key,
-                'label' => $f->label,
-                'type' => $f->type,
-                'is_required' => $f->is_required,
-                'is_base' => false,
-                'options' => $f->options,
-                'sort_order' => $f->sort_order,
-            ]);
-
-        $standardFields = collect([
-            ['key' => 'subject', 'label' => 'Subject', 'type' => 'text', 'is_required' => true, 'is_base' => false, 'options' => null, 'sort_order' => 0],
-            ['key' => 'description', 'label' => 'Description', 'type' => 'textarea', 'is_required' => false, 'is_base' => false, 'options' => null, 'sort_order' => 1],
-        ]);
+        $subcategory = $subcategoryId ? $category->subcategories()->find($subcategoryId) : null;
+        $item = $subcategory && $itemId ? $subcategory->items()->find($itemId) : null;
 
         return [
             'ticket_type' => $category->ticket_type?->value,
             'ticket_type_label' => $category->ticket_type?->label(),
-            'fields' => $standardFields->concat($baseFields)->concat($customFields)->values(),
+            'fields' => app(TicketService::class)->formFields($category, $subcategory, $item),
+            'priorities' => TicketPriority::query()
+                ->where('tenant_id', $tenantId)
+                ->orderBy('sort_order')
+                ->get(['id', 'name', 'color', 'is_default']),
         ];
     }
 }

@@ -82,6 +82,12 @@ return [
 
     'fallback_locale' => env('APP_FALLBACK_LOCALE', 'en'),
 
+    /*
+    | Languages admins can write user-facing content in (e.g. ticket form labels).
+    | The first one is the default and is stored as the plain `label`.
+    */
+    'content_locales' => explode(',', env('CONTENT_LOCALES', 'en,ar')),
+
     'faker_locale' => env('APP_FAKER_LOCALE', 'en_US'),
 
     /*

@@ -21,6 +21,7 @@ use App\Http\Controllers\ReportController;
 use App\Http\Controllers\TenantController;
 use App\Http\Controllers\TenantModuleController;
 use App\Http\Controllers\TenantSettingsController;
+use App\Http\Controllers\Ticketing\TicketApprovalController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\WorkShiftController;
 use App\Http\Controllers\ZkMachineController;
@@ -105,4 +106,11 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('missing-punches', [ReportController::class, 'missingPunches'])->name('missing-punches');
         Route::get('department-attendance', [ReportController::class, 'departmentAttendance'])->name('department-attendance');
     });
+});
+
+// Approver's link from the approval email; the signature is the credential.
+// Outside routes/tickets.php: its tenant.module middleware needs a logged-in user.
+Route::middleware('signed')->group(function () {
+    Route::get('ticket-approvals/{approval}', [TicketApprovalController::class, 'show'])->name('ticket-approvals.show');
+    Route::post('ticket-approvals/{approval}', [TicketApprovalController::class, 'respond'])->middleware('throttle:10,1')->name('ticket-approvals.respond');
 });

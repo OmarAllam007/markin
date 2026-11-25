@@ -1,4 +1,7 @@
 <script setup lang="ts">
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { useDebounceFn } from '@vueuse/core';
+import { watch } from 'vue';
 import {
     index as employeesIndex,
     create as employeesCreate,
@@ -6,9 +9,6 @@ import {
     destroy as employeesDestroy,
     importMethod as employeesImport,
 } from '@/routes/employees';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { useDebounceFn } from '@vueuse/core';
-import { watch } from 'vue';
 
 type FilterOption = { id: number; name: string };
 
@@ -67,10 +67,23 @@ const filterForm = useForm<{
 
 const submitFilters = () => {
     const q: Record<string, string> = {};
-    if (filterForm.search) q.search = filterForm.search;
-    if (filterForm.department_id) q.department_id = String(filterForm.department_id);
-    if (filterForm.location_id) q.location_id = String(filterForm.location_id);
-    if (filterForm.work_shift_id) q.work_shift_id = String(filterForm.work_shift_id);
+
+    if (filterForm.search) {
+q.search = filterForm.search;
+}
+
+    if (filterForm.department_id) {
+q.department_id = String(filterForm.department_id);
+}
+
+    if (filterForm.location_id) {
+q.location_id = String(filterForm.location_id);
+}
+
+    if (filterForm.work_shift_id) {
+q.work_shift_id = String(filterForm.work_shift_id);
+}
+
     filterForm.get(employeesIndex.url({ query: q }), {
         preserveState: true,
         replace: true,
@@ -99,7 +112,10 @@ const STATUS_LABEL: Record<string, string> = {
 };
 
 const removeEmployee = (e: EmployeeRow) => {
-    if (!window.confirm(`Delete employee "${e.english_name}"? This cannot be undone.`)) return;
+    if (!window.confirm(`Delete employee "${e.english_name}"? This cannot be undone.`)) {
+return;
+}
+
     router.delete(employeesDestroy.url({ employee: e.id }));
 };
 </script>

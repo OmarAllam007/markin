@@ -7,6 +7,7 @@ use App\Enums\PermissionModule;
 use App\Http\Requests\StoreDepartmentRequest;
 use App\Http\Requests\UpdateDepartmentRequest;
 use App\Models\Department;
+use App\Models\Employee;
 use App\Models\Tenant;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -34,7 +35,7 @@ class DepartmentController extends Controller
 
         $departments = Department::query()
             ->where('tenant_id', $tenantId)
-            ->with('creator:id,name')
+            ->with(['creator:id,name', 'manager:id,english_name'])
             ->when($request->search, fn ($q, $search) => $q->where('name', 'like', "%{$search}%"))
             ->orderByDesc('created_at')
             ->paginate(15)
@@ -46,9 +47,9 @@ class DepartmentController extends Controller
         ]);
     }
 
-    public function create(): Response
+    public function create(Request $request): Response
     {
-        return Inertia::render('departments/Create');
+        return Inertia::render('departments/Create', ['employees' => $this->employees($request->user()->current_tenant_id)]);
     }
 
     public function store(StoreDepartmentRequest $request): RedirectResponse
@@ -65,6 +66,7 @@ class DepartmentController extends Controller
             'tenant_id' => $tenantId,
             'created_by' => $request->user()->id,
             'name' => $request->validated()['name'],
+            'manager_employee_id' => $request->validated('manager_employee_id'),
         ]);
 
         return redirect()->route('departments.index')->with('success', 'Department created successfully.');
@@ -75,7 +77,8 @@ class DepartmentController extends Controller
         $this->authorizesTenantAccess(request(), $department->tenant_id, PermissionModule::Departments, PermissionAction::Edit);
 
         return Inertia::render('departments/Edit', [
-            'department' => $department->only(['id', 'name']),
+            'department' => $department->only(['id', 'name', 'manager_employee_id']),
+            'employees' => $this->employees($department->tenant_id),
         ]);
     }
 
@@ -95,6 +98,11 @@ class DepartmentController extends Controller
         $department->delete();
 
         return redirect()->route('departments.index')->with('success', 'Department deleted successfully.');
+    }
+
+    private function employees(?int $tenantId)
+    {
+        return Employee::where('tenant_id', $tenantId)->orderBy('english_name')->get(['id', 'english_name', 'email']);
     }
 
     private function authorizesTenantAccess(Request $request, int $tenantId, ?PermissionModule $module = null, ?PermissionAction $action = null): void

@@ -1,8 +1,8 @@
 <script setup lang="ts">
-import { importMethod as importFormRoute, index as employeesIndex } from '@/routes/employees';
-import { store as importStore, template as importTemplate } from '@/routes/employees/import';
 import { Head, Link, useForm, usePage } from '@inertiajs/vue3';
 import { computed, ref } from 'vue';
+import { index as employeesIndex } from '@/routes/employees';
+import { store as importStore, template as importTemplate } from '@/routes/employees/import';
 
 const page = usePage<{ flash: { success?: string | null; error?: string | null; import_errors?: string[] } }>();
 const importErrors = computed(() => page.props.flash?.import_errors ?? []);
@@ -23,6 +23,7 @@ const submit = () => {
         forceFormData: true,
     });
 };
+
 </script>
 
 <template>
@@ -52,7 +53,8 @@ const submit = () => {
                                 <div class="fs-6 text-gray-700 pe-7">
                                     Download and fill the template before uploading. Required columns:
                                     <code>english_name</code>, <code>arabic_name</code>, <code>mobile</code>.
-                                    Mobile format: <code>+966 501234567</code>
+                                    Mobile format: <code>+966 501234567</code>.
+                                    Optional <code>direct_manager_number</code>: the manager's employee number — an existing employee or another row in the file.
                                 </div>
                             </div>
                             <a
@@ -144,5 +146,6 @@ const submit = () => {
                 </div>
             </div>
         </div>
+
     </div>
 </template>

@@ -71,7 +71,7 @@ class CategoryController extends Controller
         $this->authorizeTicketAdmin($request, $category->tenant_id, PermissionAction::Edit);
 
         return Inertia::render('ticketing/admin/categories/Edit', [
-            'category' => $category->only(['id', 'name', 'name_ar', 'description', 'icon', 'color', 'is_active', 'ticket_type']),
+            'category' => $category->only(['id', 'name', 'name_translations', 'description', 'icon', 'color', 'is_active', 'ticket_type']),
             'types' => collect(TicketType::cases())->map(fn ($t) => ['value' => $t->value, 'label' => $t->label()]),
         ]);
     }

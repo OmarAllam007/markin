@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { update, index } from '@/routes/ticketing/admin/slas';
 import { Head, Link, useForm } from '@inertiajs/vue3';
+import { update, index } from '@/routes/ticketing/admin/slas';
 
 type SlaModel = { id: number; name: string; first_response_hours: number; resolve_hours: number; business_hours_only: boolean; is_active: boolean };
 

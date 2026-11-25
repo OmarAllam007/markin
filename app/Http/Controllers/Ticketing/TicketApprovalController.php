@@ -2,57 +2,75 @@
 
 namespace App\Http\Controllers\Ticketing;
 
-use App\Enums\PermissionAction;
-use App\Enums\PermissionModule;
-use App\Enums\TicketApprovalAction;
-use App\Enums\TicketStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\StoreTicketApprovalRequest;
-use App\Models\Tenant;
+use App\Models\Employee;
 use App\Models\Ticket;
 use App\Models\TicketApproval;
+use App\Services\TicketApprovalService;
+use App\Services\TicketService;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
-use Illuminate\Support\Facades\DB;
+use Illuminate\Http\Request;
 
 class TicketApprovalController extends Controller
 {
-    public function store(StoreTicketApprovalRequest $request, Ticket $ticket): RedirectResponse
+    public function store(StoreTicketApprovalRequest $request, Ticket $ticket, TicketApprovalService $approvals): RedirectResponse
     {
-        abort_if($ticket->tenant_id !== $request->user()->current_tenant_id, 403);
+        $approvals->request(
+            $ticket,
+            Employee::findOrFail($request->validated('approver_employee_id')),
+            $request->stage(),
+            $request->user(),
+            $request->file('file'),
+            $request->validated('description'),
+        );
 
-        $tenant = Tenant::findOrFail($ticket->tenant_id);
+        return back()->with('success', 'Approval requested.');
+    }
 
-        if (! $request->user()->canPerform($tenant, PermissionModule::Ticketing, PermissionAction::Edit)) {
-            abort(403, 'You do not have permission to perform this action.');
-        }
+    public function destroy(Request $request, Ticket $ticket, TicketApproval $approval, TicketApprovalService $approvals): RedirectResponse
+    {
+        abort_if($approval->ticket_id !== $ticket->id, 404);
+        // Same rule as requesting: the ticket's technician or a company admin.
+        abort_unless(StoreTicketApprovalRequest::allows($request->user(), $ticket), 403);
+        abort_unless($approval->action->value === 'pending', 422, 'Only pending approvals can be removed.');
 
-        $action = TicketApprovalAction::from($request->validated('action'));
+        $approvals->remove($approval);
 
-        DB::transaction(function () use ($request, $ticket, $action): void {
-            $nextStage = $ticket->approvals()->where('action', TicketApprovalAction::Pending)->min('stage_order') ?? 1;
+        return back()->with('success', 'Approval removed.');
+    }
 
-            TicketApproval::create([
-                'ticket_id' => $ticket->id,
-                'stage_order' => $nextStage,
-                'approver_user_id' => $request->user()->id,
-                'action' => $action,
-                'comments' => $request->validated('comments'),
-                'delegated_to_user_id' => $request->validated('delegated_to_user_id'),
-                'acted_at' => now(),
-            ]);
+    /** Signed link from the approval email — no login. */
+    public function show(TicketApproval $approval, TicketService $tickets): View
+    {
+        $ticket = $approval->ticket->load(['category', 'subcategory', 'item', 'employee:id,english_name', 'requester:id,name']);
 
-            $ticket->update([
-                'status' => match ($action) {
-                    TicketApprovalAction::Approved => TicketStatus::Approved,
-                    TicketApprovalAction::Rejected => TicketStatus::Rejected,
-                    TicketApprovalAction::Returned => TicketStatus::InReview,
-                    default => $ticket->status,
-                },
-                'resolve_date' => $action === TicketApprovalAction::Approved ? now() : null,
-            ]);
-        });
+        $fields = $ticket->category
+            ? collect(TicketService::localize($tickets->formFields($ticket->category, $ticket->subcategory, $ticket->item), app()->getLocale()))
+                ->reject(fn ($f) => in_array($f['key'], TicketService::STANDARD_KEYS, true))
+            : collect();
 
-        return redirect()->route('ticketing.tickets.show', $ticket)
-            ->with('success', 'Approval action recorded.');
+        return view('ticket-approval', [
+            'approval' => $approval->load('approverEmployee:id,english_name'),
+            'ticket' => $ticket,
+            'fields' => $fields,
+            // Only the stage that was emailed can answer, and only once.
+            'canRespond' => $approval->action->value === 'pending' && $approval->notified_at !== null && $ticket->status->value === 'in_review',
+        ]);
+    }
+
+    public function respond(Request $request, TicketApproval $approval, TicketApprovalService $approvals): RedirectResponse
+    {
+        $data = $request->validate([
+            'decision' => ['required', 'in:approve,reject'],
+            'comments' => ['nullable', 'string', 'max:2000', 'required_if:decision,reject'],
+        ]);
+
+        abort_unless($approval->action->value === 'pending' && $approval->notified_at && $approval->ticket->status->value === 'in_review', 409, 'This approval is no longer open.');
+
+        $approvals->respond($approval, $data['decision'] === 'approve', $data['comments'] ?? null);
+
+        return redirect()->to($request->fullUrl())->with('success', 'Thank you — your response was recorded.');
     }
 }

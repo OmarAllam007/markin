@@ -1,8 +1,8 @@
 <script setup lang="ts">
+import { Head, Link, router, useForm } from '@inertiajs/vue3';
+import { ref, watch, computed } from 'vue';
 import { update, index, resetDevice } from '@/routes/employees';
 import { index as employeeAttendanceIndex } from '@/routes/employees/attendance';
-import { Head, Link, router, useForm } from '@inertiajs/vue3';
-import { ref, watch } from 'vue';
 
 type Option = { value: string; label: string };
 type IdName = { id: number; name: string };
@@ -37,6 +37,7 @@ type EmployeeModel = {
     contract_type: string | null;
     status: string;
     department_id: number | null;
+    direct_manager_id: number | null;
     location_id: number | null;
     check_biometrics: boolean;
     send_reminders: boolean;
@@ -55,18 +56,27 @@ const props = defineProps<{
         contract_types: Option[];
         statuses: Option[];
         religions: Option[];
-        departments: IdName[];
+        departments: DepartmentOption[];
+        managers: ManagerOption[];
         locations: IdName[];
         work_shifts: ShiftOption[];
     };
 }>();
+
+
+type ManagerOption = { id: number; english_name: string; employee_number: string | null };
+type DepartmentOption = IdName & { manager: { id: number; english_name: string } | null };
+
+/** Nobody manages themselves; the edited employee drops out of their own manager lists. */
+const managerOptions = computed(() => props.options.managers.filter(m => m.id !== props.employee.id));
+const departmentManager = computed(() => props.options.departments.find(d => d.id === form.department_id)?.manager?.english_name ?? null);
 
 const TOTAL_STEPS = 4;
 const currentStep = ref(1);
 
 const STEP_FIELDS: Record<number, string[]> = {
     1: ['arabic_name', 'english_name', 'mobile_country_code', 'mobile_number', 'email', 'nationality', 'marital_status', 'birth_date', 'gender', 'religion'],
-    2: ['job_title_ar', 'job_title_en', 'employee_number', 'social_security_number', 'id_number', 'working_start_date', 'contract_end_date', 'contract_type', 'status'],
+    2: ['job_title_ar', 'job_title_en', 'employee_number', 'social_security_number', 'id_number', 'working_start_date', 'contract_end_date', 'contract_type', 'status', 'direct_manager_id'],
     3: ['department_id', 'location_id', 'check_biometrics', 'send_reminders', 'allow_remote_checkin', 'allow_any_location_checkin'],
     4: ['work_shift_id'],
 };
@@ -97,6 +107,7 @@ const form = useForm({
     status: e.status,
     // Step 3
     department_id: e.department_id,
+    direct_manager_id: e.direct_manager_id,
     location_id: e.location_id,
     check_biometrics: e.check_biometrics,
     send_reminders: e.send_reminders,
@@ -110,6 +121,7 @@ watch(
     () => form.errors,
     (errors) => {
         const keys = Object.keys(errors);
+
         for (let step = 1; step <= TOTAL_STEPS; step++) {
             if (keys.some((k) => STEP_FIELDS[step].includes(k))) {
                 currentStep.value = step;
@@ -610,6 +622,30 @@ const STEPS = [
                                 class="invalid-feedback"
                             >{{ form.errors.status }}</div>
                         </div>
+                            <div class="col-md-6">
+                                <label
+                                    class="form-label"
+                                    for="emp-direct-manager"
+                                >Direct manager</label>
+                                <select
+                                    id="emp-direct-manager"
+                                    v-model="form.direct_manager_id"
+                                    class="form-select"
+                                    :class="{ 'is-invalid': form.errors.direct_manager_id }"
+                                >
+                                    <option :value="null">— None —</option>
+                                    <option
+                                        v-for="m in managerOptions"
+                                        :key="m.id"
+                                        :value="m.id"
+                                    >{{ m.english_name }}{{ m.employee_number ? ` (${m.employee_number})` : '' }}</option>
+                                </select>
+                                <div
+                                    v-if="form.errors.direct_manager_id"
+                                    class="invalid-feedback"
+                                >{{ form.errors.direct_manager_id }}</div>
+                                <div class="form-text">Approves this employee's requests when a service uses the Direct manager step.</div>
+                            </div>
                     </div>
                 </div>
 
@@ -643,6 +679,10 @@ const STEPS = [
                                     v-if="form.errors.department_id"
                                     class="invalid-feedback"
                                 >{{ form.errors.department_id }}</div>
+                                <div
+                                    v-if="form.department_id"
+                                    class="form-text"
+                                >Department manager: {{ departmentManager ?? 'not set yet — set it on the department' }}</div>
                             </div>
                             <div class="col-md-4">
                                 <label

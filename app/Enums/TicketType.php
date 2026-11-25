@@ -27,16 +27,59 @@ enum TicketType: string
 
     /**
      * Returns the locked required fields for this ticket type.
-     * Each field: key, label, type (text|number|date|time|select|textarea|checkbox), required, options.
+     * Each field: key, label, type (text|number|date|time|select|textarea|checkbox|computed), required, options.
      *
      * @return array<int, array{key: string, label: string, type: string, required: bool, options: array<int, array{value: string, label: string}>|null}>
      */
     public function baseFields(): array
     {
+        return array_map(fn (array $f) => [
+            ...$f,
+            'translations' => ['ar' => self::AR_LABELS[$f['key']] ?? $f['label']],
+            'options' => $f['options'] === null ? null : array_map(
+                fn (array $o) => [...$o, 'translations' => ['ar' => self::AR_OPTIONS[$o['value']] ?? $o['label']]],
+                $f['options'],
+            ),
+        ], $this->englishBaseFields());
+    }
+
+    private const AR_LABELS = [
+        'start_date' => 'تاريخ البداية',
+        'end_date' => 'تاريخ النهاية',
+        'days_count' => 'عدد الأيام',
+        'leave_type' => 'نوع الإجازة',
+        'reason' => 'السبب',
+        'date' => 'التاريخ',
+        'start_time' => 'وقت البداية',
+        'end_time' => 'وقت النهاية',
+        'hours_count' => 'عدد الساعات',
+        'destination' => 'الوجهة',
+        'purpose' => 'الغرض',
+        'travel_mode' => 'وسيلة السفر',
+        'device_type' => 'نوع الجهاز',
+        'current_device_serial' => 'الرقم التسلسلي للجهاز الحالي',
+        'punch_type' => 'نوع البصمة',
+    ];
+
+    private const AR_OPTIONS = [
+        'annual' => 'إجازة سنوية',
+        'sick' => 'إجازة مرضية',
+        'unpaid' => 'إجازة بدون راتب',
+        'emergency' => 'إجازة طارئة',
+        'flight' => 'طيران',
+        'car' => 'سيارة',
+        'train' => 'قطار',
+        'check_in' => 'حضور',
+        'check_out' => 'انصراف',
+    ];
+
+    private function englishBaseFields(): array
+    {
         return match ($this) {
             TicketType::Leave => [
                 ['key' => 'start_date', 'label' => 'Start Date', 'type' => 'date', 'required' => true, 'options' => null],
                 ['key' => 'end_date', 'label' => 'End Date', 'type' => 'date', 'required' => true, 'options' => null],
+                ['key' => 'days_count', 'label' => 'Number of Days', 'type' => 'computed', 'required' => false, 'options' => null, 'formula' => 'days_between', 'args' => ['start_date', 'end_date']],
                 ['key' => 'leave_type', 'label' => 'Leave Type', 'type' => 'select', 'required' => true, 'options' => [
                     ['value' => 'annual', 'label' => 'Annual Leave'],
                     ['value' => 'sick', 'label' => 'Sick Leave'],
@@ -50,6 +93,7 @@ enum TicketType: string
                 ['key' => 'date', 'label' => 'Date', 'type' => 'date', 'required' => true, 'options' => null],
                 ['key' => 'start_time', 'label' => 'Start Time', 'type' => 'time', 'required' => true, 'options' => null],
                 ['key' => 'end_time', 'label' => 'End Time', 'type' => 'time', 'required' => true, 'options' => null],
+                ['key' => 'hours_count', 'label' => 'Number of Hours', 'type' => 'computed', 'required' => false, 'options' => null, 'formula' => 'hours_between', 'args' => ['start_time', 'end_time']],
                 ['key' => 'reason', 'label' => 'Reason', 'type' => 'textarea', 'required' => true, 'options' => null],
             ],
 
@@ -57,6 +101,7 @@ enum TicketType: string
                 ['key' => 'destination', 'label' => 'Destination', 'type' => 'text', 'required' => true, 'options' => null],
                 ['key' => 'start_date', 'label' => 'Departure Date', 'type' => 'date', 'required' => true, 'options' => null],
                 ['key' => 'end_date', 'label' => 'Return Date', 'type' => 'date', 'required' => true, 'options' => null],
+                ['key' => 'days_count', 'label' => 'Number of Days', 'type' => 'computed', 'required' => false, 'options' => null, 'formula' => 'days_between', 'args' => ['start_date', 'end_date']],
                 ['key' => 'purpose', 'label' => 'Purpose', 'type' => 'textarea', 'required' => true, 'options' => null],
                 ['key' => 'travel_mode', 'label' => 'Travel Mode', 'type' => 'select', 'required' => true, 'options' => [
                     ['value' => 'flight', 'label' => 'Flight'],
@@ -69,6 +114,7 @@ enum TicketType: string
                 ['key' => 'date', 'label' => 'Date', 'type' => 'date', 'required' => true, 'options' => null],
                 ['key' => 'start_time', 'label' => 'Start Time', 'type' => 'time', 'required' => true, 'options' => null],
                 ['key' => 'end_time', 'label' => 'End Time', 'type' => 'time', 'required' => true, 'options' => null],
+                ['key' => 'hours_count', 'label' => 'Number of Hours', 'type' => 'computed', 'required' => false, 'options' => null, 'formula' => 'hours_between', 'args' => ['start_time', 'end_time']],
                 ['key' => 'reason', 'label' => 'Reason', 'type' => 'textarea', 'required' => true, 'options' => null],
             ],
 

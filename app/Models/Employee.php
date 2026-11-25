@@ -39,6 +39,7 @@ use Laravel\Sanctum\HasApiTokens;
     'contract_type',
     'status',
     'department_id',
+    'direct_manager_id',
     'location_id',
     'check_biometrics',
     'send_reminders',
@@ -102,6 +103,11 @@ class Employee extends Model implements AuthenticatableContract
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function directManager(): BelongsTo
+    {
+        return $this->belongsTo(Employee::class, 'direct_manager_id');
     }
 
     public function department(): BelongsTo

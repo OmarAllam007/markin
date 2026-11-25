@@ -11,12 +11,17 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 #[Fillable([
     'tenant_id',
     'name',
-    'name_ar',
+    'name_translations',
     'description',
     'icon',
     'color',
     'is_active',
     'ticket_type',
+    'group_id',
+    'technician_id',
+    'sla_id',
+    'form_fields',
+    'approval_steps',
 ])]
 class TicketCategory extends Model
 {
@@ -25,6 +30,9 @@ class TicketCategory extends Model
         return [
             'is_active' => 'boolean',
             'ticket_type' => TicketType::class,
+            'form_fields' => 'array',
+            'approval_steps' => 'array',
+            'name_translations' => 'array',
         ];
     }
 

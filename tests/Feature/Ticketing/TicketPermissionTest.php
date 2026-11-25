@@ -5,7 +5,6 @@ use App\Enums\PermissionAction;
 use App\Enums\PermissionModule;
 use App\Models\Tenant;
 use App\Models\TenantModule;
-use App\Models\TicketCategory;
 use App\Models\User;
 use App\Models\UserPermission;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -33,17 +32,13 @@ function grantTicketingPermission(User $user, Tenant $tenant, PermissionAction $
 
 function ticketFormPayload(Tenant $tenant): array
 {
-    $category = TicketCategory::create([
-        'tenant_id' => $tenant->id,
-        'name' => 'IT Support',
-        'color' => '#000000',
-        'is_active' => true,
-    ]);
+    $service = configuredTicketService($tenant);
 
     return [
         'subject' => 'Laptop not working',
         'description' => 'Details',
-        'category_id' => $category->id,
+        'category_id' => $service['category']->id,
+        'subcategory_id' => $service['subcategory']->id,
     ];
 }
 

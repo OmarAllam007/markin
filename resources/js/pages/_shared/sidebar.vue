@@ -1,32 +1,34 @@
 <script setup lang="ts">
+import { Link, router, usePage } from '@inertiajs/vue3';
+import { computed, ref } from 'vue';
 import { switchMethod as switchTenantRoute } from '@/actions/App/Http/Controllers/TenantController';
-import { index as departmentsIndex } from '@/routes/departments';
-import { index as locationsIndex } from '@/routes/locations';
-import { index as usersIndex } from '@/routes/users';
+import SettingsModal from '@/pages/_shared/SettingsModal.vue';
 import { index as announcementsIndex } from '@/routes/announcements';
-import { index as employeesIndex } from '@/routes/employees';
-import { index as workShiftsIndex } from '@/routes/work-shifts';
 import { index as attendancesIndex } from '@/routes/attendances';
+import { index as departmentsIndex } from '@/routes/departments';
+import { index as employeesIndex } from '@/routes/employees';
 import { index as holidaysIndex } from '@/routes/holidays/index';
 import { index as leaveTypesIndex } from '@/routes/leave-types/index';
 import { index as leavesIndex } from '@/routes/leaves/index';
+import { index as locationsIndex } from '@/routes/locations';
 import { index as reportsIndex } from '@/routes/reports/index';
-import { index as zkMachinesIndex } from '@/routes/zk-machines/index';
-import { index as ticketsIndex } from '@/routes/ticketing/tickets/index';
+import { index as ticketApprovalRolesIndex } from '@/routes/ticketing/admin/approval-roles/index';
 import { index as ticketCategoriesIndex } from '@/routes/ticketing/admin/categories/index';
-import { index as ticketSubcategoriesIndex } from '@/routes/ticketing/admin/subcategories/index';
-import { index as ticketPrioritiesIndex } from '@/routes/ticketing/admin/priorities/index';
-import { index as ticketSlasIndex } from '@/routes/ticketing/admin/slas/index';
 import { index as ticketGroupsIndex } from '@/routes/ticketing/admin/groups/index';
-import { index as ticketFormFieldsIndex } from '@/routes/ticketing/admin/form-fields/index';
-import { Link, router, usePage } from '@inertiajs/vue3';
-import { computed, ref } from 'vue';
-import SettingsModal from '@/pages/_shared/SettingsModal.vue';
+import { index as ticketPrioritiesIndex } from '@/routes/ticketing/admin/priorities/index';
+import { index as ticketRequestStatusesIndex } from '@/routes/ticketing/admin/request-statuses/index';
+import { index as ticketServiceCatalogIndex } from '@/routes/ticketing/admin/service-catalog/index';
+import { index as ticketSlasIndex } from '@/routes/ticketing/admin/slas/index';
+import { index as ticketSubcategoriesIndex } from '@/routes/ticketing/admin/subcategories/index';
+import { index as ticketsIndex } from '@/routes/ticketing/tickets/index';
+import { index as usersIndex } from '@/routes/users';
+import { index as workShiftsIndex } from '@/routes/work-shifts';
+import { index as zkMachinesIndex } from '@/routes/zk-machines/index';
 
 defineProps<{ open: boolean }>();
 const emit = defineEmits<{ close: [] }>();
 type Tenant = { id: number; name: string; parent_id: number | null };
-const page = usePage<{ auth: { currentTenant: Tenant | null; switchableTenants: Tenant[] }; enabledModules: string[] }>();
+const page = usePage<{ auth: { currentTenant: Tenant | null; switchableTenants: Tenant[] }; enabledModules: string[]; canManageTicketing?: boolean }>();
 const settingsOpen = ref(false);
 const tenantOpen = ref(false);
 const currentPath = computed(() => page.url.split('?')[0]);
@@ -74,17 +76,23 @@ const sections = computed(() => [
         { label: 'Announcements', href: announcementsIndex.url(), icon: 'megaphone' },
         ...(hasTicketing.value ? [{ label: 'Tickets', href: ticketsIndex.url(), icon: 'ticket' }] : []),
     ] },
-    ...(hasTicketing.value ? [{ title: 'Ticket setup', links: [
+    ...(hasTicketing.value && page.props.canManageTicketing ? [{ title: 'Ticket setup', links: [
         { label: 'Categories', href: ticketCategoriesIndex.url(), icon: 'folder' },
         { label: 'Subcategories', href: ticketSubcategoriesIndex.url(), icon: 'layers' },
         { label: 'Priorities', href: ticketPrioritiesIndex.url(), icon: 'flag' },
         { label: 'SLAs', href: ticketSlasIndex.url(), icon: 'timer' },
         { label: 'Groups', href: ticketGroupsIndex.url(), icon: 'users' },
-        { label: 'Form fields', href: ticketFormFieldsIndex.url(), icon: 'form' },
+        { label: 'Request statuses', href: ticketRequestStatusesIndex.url(), icon: 'status' },
+        { label: 'Approval roles', href: ticketApprovalRolesIndex.url(), icon: 'security-user' },
+        { label: 'Service catalog', href: ticketServiceCatalogIndex.url(), icon: 'technology-4' },
     ] }] : []),
 ]);
-function switchTenant(id: number) { tenantOpen.value = false; router.post(switchTenantRoute.url(), { tenant_id: id }); }
-function active(href: string) { return href === '/' ? currentPath.value === '/' : currentPath.value === href || currentPath.value.startsWith(`${href}/`); }
+function switchTenant(id: number) {
+ tenantOpen.value = false; router.post(switchTenantRoute.url(), { tenant_id: id }); 
+}
+function active(href: string) {
+ return href === '/' ? currentPath.value === '/' : currentPath.value === href || currentPath.value.startsWith(`${href}/`); 
+}
 </script>
 
 <template>

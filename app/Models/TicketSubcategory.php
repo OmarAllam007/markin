@@ -11,9 +11,14 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'tenant_id',
     'category_id',
     'name',
-    'name_ar',
+    'name_translations',
     'description',
     'is_active',
+    'group_id',
+    'technician_id',
+    'sla_id',
+    'form_fields',
+    'approval_steps',
 ])]
 class TicketSubcategory extends Model
 {
@@ -21,6 +26,9 @@ class TicketSubcategory extends Model
     {
         return [
             'is_active' => 'boolean',
+            'form_fields' => 'array',
+            'approval_steps' => 'array',
+            'name_translations' => 'array',
         ];
     }
 
@@ -32,6 +40,11 @@ class TicketSubcategory extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(TicketCategory::class, 'category_id');
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(TicketItem::class, 'subcategory_id');
     }
 
     public function tickets(): HasMany

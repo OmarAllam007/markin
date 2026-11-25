@@ -4,11 +4,13 @@ namespace App\Http\Controllers\Ticketing\Admin;
 
 use App\Enums\PermissionAction;
 use App\Enums\PermissionModule;
+use App\Enums\TicketGroupType;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Ticketing\Admin\StoreGroupRequest;
 use App\Http\Requests\Ticketing\Admin\UpdateGroupRequest;
 use App\Models\Tenant;
 use App\Models\TicketGroup;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
@@ -28,7 +30,7 @@ class GroupController extends Controller
 
         $groups = TicketGroup::query()
             ->where('tenant_id', $tenantId)
-            ->withCount('tickets')
+            ->withCount(['tickets', 'members'])
             ->when($request->search, fn ($q, $search) => $q->where('name', 'like', "%{$search}%"))
             ->orderByDesc('created_at')
             ->paginate(15)
@@ -44,7 +46,7 @@ class GroupController extends Controller
     {
         $this->authorizeTicketAdmin($request, $request->user()->current_tenant_id, PermissionAction::Edit);
 
-        return Inertia::render('ticketing/admin/groups/Create');
+        return Inertia::render('ticketing/admin/groups/Create', $this->formOptions($request));
     }
 
     public function store(StoreGroupRequest $request): RedirectResponse
@@ -53,11 +55,12 @@ class GroupController extends Controller
 
         $this->authorizeTicketAdmin($request, $tenantId, PermissionAction::Edit);
 
-        TicketGroup::create([
-            ...$request->validated(),
+        $group = TicketGroup::create([
+            ...$request->safe()->except('member_ids'),
             'tenant_id' => $tenantId,
             'is_active' => $request->boolean('is_active', true),
         ]);
+        $group->members()->sync($request->validated('member_ids', []));
 
         return redirect()->route('ticketing.admin.groups.index')
             ->with('success', 'Group created successfully.');
@@ -68,7 +71,11 @@ class GroupController extends Controller
         $this->authorizeTicketAdmin($request, $group->tenant_id, PermissionAction::Edit);
 
         return Inertia::render('ticketing/admin/groups/Edit', [
-            'group' => $group->only(['id', 'name', 'description', 'is_active']),
+            'group' => [
+                ...$group->only(['id', 'name', 'type', 'description', 'is_active']),
+                'member_ids' => $group->members()->pluck('users.id'),
+            ],
+            ...$this->formOptions($request),
         ]);
     }
 
@@ -77,9 +84,10 @@ class GroupController extends Controller
         $this->authorizeTicketAdmin($request, $group->tenant_id, PermissionAction::Edit);
 
         $group->update([
-            ...$request->validated(),
+            ...$request->safe()->except('member_ids'),
             'is_active' => $request->boolean('is_active', true),
         ]);
+        $group->members()->sync($request->validated('member_ids', []));
 
         return redirect()->route('ticketing.admin.groups.index')
             ->with('success', 'Group updated successfully.');
@@ -93,6 +101,17 @@ class GroupController extends Controller
 
         return redirect()->route('ticketing.admin.groups.index')
             ->with('success', 'Group deleted successfully.');
+    }
+
+    private function formOptions(Request $request): array
+    {
+        return [
+            'types' => collect(TicketGroupType::cases())->map(fn ($t) => ['value' => $t->value, 'label' => $t->label()]),
+            'users' => User::query()
+                ->whereHas('tenants', fn ($q) => $q->where('tenant_id', $request->user()->current_tenant_id))
+                ->orderBy('name')
+                ->get(['id', 'name', 'email']),
+        ];
     }
 
     private function authorizeTicketAdmin(Request $request, ?int $tenantId, PermissionAction $action): void
