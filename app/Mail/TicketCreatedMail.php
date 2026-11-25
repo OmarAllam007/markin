@@ -22,19 +22,20 @@ class TicketCreatedMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        return new Envelope(
-            subject: $this->forTechnician
-                ? "New ticket assigned to you: #{$this->ticket->id} {$this->ticket->subject}"
-                : "Your request #{$this->ticket->id} has been received",
-        );
+        $employeeId = $this->ticket->employee?->employee_number;
+        $reference = "Request #{$this->ticket->id}".($employeeId ? " · Employee {$employeeId}" : '');
+
+        return new Envelope(subject: $this->forTechnician
+            ? "{$reference} | Assigned to you"
+            : "{$reference} | We received your request");
     }
 
     public function content(): Content
     {
-        $this->ticket->loadMissing(['requester:id,name', 'employee:id,english_name', 'technician:id,name', 'group:id,name', 'category:id,name', 'subcategory:id,name', 'item:id,name', 'sla:id,name']);
+        $this->ticket->loadMissing(['requester:id,name', 'employee:id,english_name,employee_number', 'technician:id,name', 'group:id,name', 'category:id,name', 'subcategory:id,name', 'item:id,name', 'sla:id,name']);
 
         return new Content(
-            markdown: 'mail.ticket-created',
+            view: 'mail.ticket-created',
             with: ['ticket' => $this->ticket, 'forTechnician' => $this->forTechnician],
         );
     }

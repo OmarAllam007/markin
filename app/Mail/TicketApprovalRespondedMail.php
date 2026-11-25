@@ -22,15 +22,18 @@ class TicketApprovalRespondedMail extends Mailable implements ShouldQueue
     {
         $verb = $this->approval->action === TicketApprovalAction::Approved ? 'Approved' : 'Rejected';
 
-        return new Envelope(subject: "{$verb}: #{$this->approval->ticket_id} {$this->approval->ticket->subject}");
+        $ticket = $this->approval->ticket;
+        $employeeId = $ticket->employee?->employee_number;
+
+        return new Envelope(subject: "Request #{$ticket->id}".($employeeId ? " · Employee {$employeeId}" : '')." | {$verb}");
     }
 
     public function content(): Content
     {
-        $ticket = $this->approval->ticket->loadMissing(['technician:id,name', 'requestStatus:id,name']);
+        $ticket = $this->approval->ticket->loadMissing(['technician:id,name', 'requestStatus:id,name', 'employee:id,english_name,employee_number', 'requester:id,name', 'category:id,name', 'subcategory:id,name', 'item:id,name']);
         $pending = $ticket->approvals()->where('action', TicketApprovalAction::Pending)->count();
 
-        return new Content(markdown: 'mail.ticket-approval-responded', with: [
+        return new Content(view: 'mail.ticket-approval-responded', with: [
             'approval' => $this->approval,
             'ticket' => $ticket,
             'approved' => $this->approval->action === TicketApprovalAction::Approved,

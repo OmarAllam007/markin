@@ -1,31 +1,13 @@
-<x-mail::message>
-# {{ $approved ? 'Approved' : 'Rejected' }} — request #{{ $ticket->id }}
-
-Dear {{ $ticket->technician?->name }},
-
-**{{ $approval->approverEmployee?->english_name }}**@if($approval->role) ({{ $approval->role }})@endif {{ $approved ? 'approved' : 'rejected' }} stage {{ $approval->stage_order }} of **{{ $ticket->subject }}**.
-
-@if($approval->comments)
-<x-mail::panel>
-{{ $approval->comments }}
-</x-mail::panel>
-@endif
-
-@switch($outcome)
-@case('rejected')
-The request is back with you as **{{ $ticket->requestStatus?->name }}**. Let the requester know, then close or cancel it.
-@break
-@case('all_approved')
-Every approval is in. The request is back with you as **{{ $ticket->requestStatus?->name }}** and its clock is running again.
-@break
-@default
-{{ $pending }} {{ $pending === 1 ? 'approval is' : 'approvals are' }} still pending; the next stage has been asked.
-@endswitch
-
-<x-mail::button :url="route('ticketing.tickets.show', $ticket).'#approvals'">
-Open the request
-</x-mail::button>
-
-Thanks,<br>
-{{ config('app.name') }}
-</x-mail::message>
+@extends('mail.ticket-layout')
+@section('title', $approved ? 'Approval received' : 'Approval rejected')
+@section('preview', 'An approver has responded to request #'.$ticket->id.'.')
+@section('intro')
+<p style="margin:0 0 10px;">Hello {{ $ticket->technician?->name ?? 'there' }},</p>
+<p style="margin:0;"><strong>{{ $approval->approverEmployee?->english_name ?? 'An approver' }}</strong>@if($approval->role) ({{ $approval->role }})@endif has <strong>{{ $approved ? 'approved' : 'rejected' }}</strong> stage {{ $approval->stage_order }}.</p>
+@endsection
+@section('body')
+@if($approval->comments)<div style="background:#f0f7ff;border-left:3px solid #42a5f5;padding:13px 16px;font-size:14px;line-height:1.6;color:#334b59;"><strong>Approver comment</strong><br>{!! nl2br(e($approval->comments)) !!}</div>@endif
+<p style="font-size:14px;line-height:1.65;color:#334b59;margin:17px 0 0;">@switch($outcome)@case('rejected')The request is back with you as <strong>{{ $ticket->requestStatus?->name }}</strong>. Please update the requester and resolve the next step.@break @case('all_approved')All approvals are complete. The request is back with you as <strong>{{ $ticket->requestStatus?->name }}</strong>.@break @default {{ $pending }} {{ $pending === 1 ? 'approval is' : 'approvals are' }} still pending.@endswitch</p>
+@endsection
+@section('action_url', route('ticketing.tickets.show', $ticket).'#approvals')
+@section('action_label', 'View approvals')

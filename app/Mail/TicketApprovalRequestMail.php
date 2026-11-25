@@ -21,15 +21,18 @@ class TicketApprovalRequestMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: "Approval needed: #{$this->approval->ticket_id} {$this->approval->ticket->subject}");
+        $ticket = $this->approval->ticket;
+        $employeeId = $ticket->employee?->employee_number;
+
+        return new Envelope(subject: "Request #{$ticket->id}".($employeeId ? " · Employee {$employeeId}" : '').' | Approval needed');
     }
 
     public function content(): Content
     {
-        $this->approval->loadMissing(['approverEmployee:id,english_name', 'ticket.employee:id,english_name', 'ticket.requester:id,name', 'ticket.category:id,name', 'ticket.subcategory:id,name', 'ticket.item:id,name']);
+        $this->approval->loadMissing(['approverEmployee:id,english_name', 'ticket.employee:id,english_name,employee_number', 'ticket.requester:id,name', 'ticket.category:id,name', 'ticket.subcategory:id,name', 'ticket.item:id,name']);
 
         return new Content(
-            markdown: 'mail.ticket-approval-request',
+            view: 'mail.ticket-approval-request',
             with: [
                 'approval' => $this->approval,
                 'ticket' => $this->approval->ticket,

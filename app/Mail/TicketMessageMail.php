@@ -19,14 +19,17 @@ class TicketMessageMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: "Re: #{$this->message->ticket_id} {$this->message->ticket->subject}");
+        $ticket = $this->message->ticket;
+        $employeeId = $ticket->employee?->employee_number;
+
+        return new Envelope(subject: "Request #{$ticket->id}".($employeeId ? " · Employee {$employeeId}" : '').' | New message');
     }
 
     public function content(): Content
     {
-        $this->message->loadMissing(['user:id,name', 'employee:id,english_name', 'requestStatus:id,name']);
+        $this->message->loadMissing(['user:id,name', 'employee:id,english_name,employee_number', 'requestStatus:id,name', 'ticket.employee:id,english_name,employee_number', 'ticket.requester:id,name', 'ticket.category:id,name', 'ticket.subcategory:id,name', 'ticket.item:id,name']);
 
-        return new Content(markdown: 'mail.ticket-message', with: ['message' => $this->message, 'ticket' => $this->message->ticket]);
+        return new Content(view: 'mail.ticket-message', with: ['ticketMessage' => $this->message, 'ticket' => $this->message->ticket]);
     }
 
     public function attachments(): array

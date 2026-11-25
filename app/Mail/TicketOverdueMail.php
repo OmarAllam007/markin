@@ -18,11 +18,13 @@ class TicketOverdueMail extends Mailable implements ShouldQueue
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: "Overdue: #{$this->ticket->id} {$this->ticket->subject}");
+        $employeeId = $this->ticket->employee?->employee_number;
+
+        return new Envelope(subject: "Request #{$this->ticket->id}".($employeeId ? " · Employee {$employeeId}" : '').' | Overdue');
     }
 
     public function content(): Content
     {
-        return new Content(markdown: 'mail.ticket-overdue', with: ['ticket' => $this->ticket->loadMissing(['technician:id,name', 'sla:id,name'])]);
+        return new Content(view: 'mail.ticket-overdue', with: ['ticket' => $this->ticket->loadMissing(['technician:id,name', 'sla:id,name', 'employee:id,english_name,employee_number', 'requester:id,name', 'category:id,name', 'subcategory:id,name', 'item:id,name'])]);
     }
 }
