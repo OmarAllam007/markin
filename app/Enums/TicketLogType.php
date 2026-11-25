@@ -5,6 +5,7 @@ namespace App\Enums;
 enum TicketLogType: string
 {
     case Created = 'created';
+    case RuleApplied = 'rule_applied';
     case Updated = 'updated';
     case Deleted = 'deleted';
     case Restored = 'restored';
@@ -21,6 +22,7 @@ enum TicketLogType: string
     {
         return match ($this) {
             self::Created => 'Ticket created',
+            self::RuleApplied => 'Assigned by business rule',
             self::Updated => 'Ticket updated',
             self::Deleted => 'Ticket deleted',
             self::Restored => 'Ticket restored',

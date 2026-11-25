@@ -13,6 +13,7 @@ import { index as leavesIndex } from '@/routes/leaves/index';
 import { index as locationsIndex } from '@/routes/locations';
 import { index as reportsIndex } from '@/routes/reports/index';
 import { index as ticketApprovalRolesIndex } from '@/routes/ticketing/admin/approval-roles/index';
+import { index as ticketBusinessRulesIndex } from '@/routes/ticketing/admin/business-rules/index';
 import { index as ticketCategoriesIndex } from '@/routes/ticketing/admin/categories/index';
 import { index as ticketGroupsIndex } from '@/routes/ticketing/admin/groups/index';
 import { index as ticketPrioritiesIndex } from '@/routes/ticketing/admin/priorities/index';
@@ -53,6 +54,7 @@ const iconPaths: Record<string, string> = {
     timer: 'M9 2h6 M12 14l3-3 M12 22a8 8 0 1 0 0-16 8 8 0 0 0 0 16 M18 5l2-2',
     status: 'M4 12l5 5L20 6 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20',
     'security-user': 'M12 13a4 4 0 1 0 0-8 4 4 0 0 0 0 8 M5 21v-2a7 7 0 0 1 7-7 M17 15l2 2 3-4 M16 20h6',
+    route: 'M6 3a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M6 7v4a3 3 0 0 0 3 3h6 M6 11v6 M18 12a2 2 0 1 0 0 4 2 2 0 0 0 0-4z M6 17a2 2 0 1 0 0 4 2 2 0 0 0 0-4z',
     'technology-4': 'M4 4h16v16H4z M8 9h8 M8 13h8 M8 17h5 M8 4v-2 M16 4v-2',
     form: 'M7 3h10a2 2 0 0 1 2 2v16H5V5a2 2 0 0 1 2-2 M9 8h6 M9 12h6 M9 16h4',
     settings: 'M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6 M10 2h4l.6 2.2 2 .8 2-.9 2.8 2.8-.9 2 .8 2L23 11v4l-2.2.6-.8 2 .9 2-2.8 2.8-2-.9-2 .8L14 23h-4l-.6-2.2-2-.8-2 .9-2.8-2.8.9-2-.8-2L1 15v-4l2.2-.6.8-2-.9-2L5.9 3.6l2 .9 2-.8z',
@@ -88,6 +90,7 @@ const sections = computed(() => [
         { label: 'Request statuses', href: ticketRequestStatusesIndex.url(), icon: 'status' },
         { label: 'Approval roles', href: ticketApprovalRolesIndex.url(), icon: 'security-user' },
         { label: 'Service catalog', href: ticketServiceCatalogIndex.url(), icon: 'technology-4' },
+        { label: 'Business rules', href: ticketBusinessRulesIndex.url(), icon: 'route' },
     ] }] : []),
 ]);
 function switchTenant(id: number) {

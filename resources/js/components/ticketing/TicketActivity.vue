@@ -29,6 +29,7 @@ const LABELS: Record<string, string> = {
 /** Per type: icon, colour and the sentence shown. */
 const TYPES: Record<string, { icon: string; color: string; text: (l: TicketLog) => string }> = {
     created: { icon: 'ki-plus-square', color: 'primary', text: () => 'created the ticket' },
+    rule_applied: { icon: 'ki-route', color: 'info', text: l => `Business rule “${l.meta?.rule}” assigned it to ${l.meta?.group}` },
     updated: { icon: 'ki-pencil', color: 'info', text: l => `changed ${Object.keys(l.changes ?? {}).length} field(s)` },
     deleted: { icon: 'ki-trash', color: 'danger', text: () => 'deleted the ticket' },
     restored: { icon: 'ki-arrows-circle', color: 'success', text: () => 'restored the ticket' },
@@ -46,7 +47,7 @@ const TYPES: Record<string, { icon: string; color: string; text: (l: TicketLog) 
 };
 
 const typeOf = (l: TicketLog) => TYPES[l.type] ?? { icon: 'ki-information', color: 'secondary', text: () => l.type };
-const actor = (l: TicketLog) => (l.meta?.automatic || l.type === 'approval_skipped' ? '' : l.user?.name ?? l.employee?.english_name ?? 'System');
+const actor = (l: TicketLog) => (l.meta?.automatic || l.type === 'approval_skipped' || l.type === 'rule_applied' ? '' : l.user?.name ?? l.employee?.english_name ?? 'System');
 const label = (key: string) => (key.startsWith('form_data.') ? props.fieldLabels[key.slice(10)] ?? key.slice(10) : LABELS[key] ?? key);
 const show = (v: unknown) => (v === null || v === undefined || v === '' ? '—' : typeof v === 'boolean' ? (v ? '✓' : '✗') : String(v));
 

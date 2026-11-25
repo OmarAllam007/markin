@@ -54,12 +54,18 @@ const remove = (role: Role) => {
                 </div>
             </div>
             <div class="card-body pt-0">
+                <div class="table-responsive">
                 <table class="table table-row-dashed align-middle fs-6 gy-4">
+                    <colgroup>
+                        <col class="role-column">
+                        <col class="holder-column">
+                        <col class="actions-column">
+                    </colgroup>
                     <thead>
                         <tr class="text-muted fw-bold fs-7">
-                            <th class="w-35">Role</th>
+                            <th>Role</th>
                             <th>Held by</th>
-                            <th class="text-end w-150px" />
+                            <th class="text-end">Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -70,7 +76,10 @@ const remove = (role: Role) => {
                             <tr v-if="row && editingId !== row.id">
                                 <td class="fw-bold text-gray-800">{{ row.name }}</td>
                                 <td>
-                                    <template v-if="row.employee">{{ row.employee.english_name }} <span class="text-muted fs-7">{{ row.employee.email }}</span></template>
+                                    <template v-if="row.employee">
+                                        <div class="fw-semibold text-gray-800">{{ row.employee.english_name }}</div>
+                                        <div class="text-muted fs-7 text-break">{{ row.employee.email }}</div>
+                                    </template>
                                     <span
                                         v-else
                                         class="badge badge-light-warning"
@@ -141,7 +150,18 @@ const remove = (role: Role) => {
                         </tr>
                     </tbody>
                 </table>
+                </div>
             </div>
         </div>
     </div>
 </template>
+
+<style scoped>
+.table { min-width: 680px; table-layout: fixed; }
+.role-column { width: 30%; }
+.holder-column { width: 46%; }
+.actions-column { width: 24%; }
+.table th, .table td { padding-inline: 14px; overflow-wrap: anywhere; }
+.table th:first-child, .table td:first-child { padding-inline-start: 0; }
+.table th:last-child, .table td:last-child { padding-inline-end: 0; }
+</style>

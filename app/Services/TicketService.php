@@ -3,6 +3,7 @@
 namespace App\Services;
 
 use App\Enums\TicketGroupType;
+use App\Enums\TicketLogType;
 use App\Enums\TicketStatus;
 use App\Mail\TicketCreatedMail;
 use App\Models\Attachment;
@@ -231,17 +232,23 @@ class TicketService
         $config = $this->resolveConfig($category, $subcategory, $item);
         $fields = $this->formFields($category, $subcategory, $item);
 
+        // Business rules decide the assignment first; the service catalog is the fallback.
+        $userId = $requester instanceof User ? $requester->id : null;
+        $data['source'] ??= $userId ? 'web' : 'mobile';
+        $employee = $requester instanceof Employee ? $requester : Employee::where('tenant_id', $tenantId)->find($data['employee_id'] ?? null);
+        $rule = app(BusinessRuleService::class)->match($tenantId, BusinessRuleService::context($data, $employee));
+
         $group = TicketGroup::query()
             ->where('tenant_id', $tenantId)
             ->where('type', TicketGroupType::Technician)
             ->where('is_active', true)
-            ->find($config['group_id']);
+            ->find($rule?->group_id ?? $config['group_id']);
 
         if (! $group) {
             throw ValidationException::withMessages(['category_id' => 'No technician group is configured for this service. Ask an admin to set one in the service catalog.']);
         }
 
-        $technicianId = $this->pickTechnician($group, $config['technician_id']);
+        $technicianId = $this->pickTechnician($group, $rule ? $rule->technician_id : $config['technician_id']);
 
         if (! $technicianId) {
             throw ValidationException::withMessages(['category_id' => "The technician group \"{$group->name}\" has no members."]);
@@ -252,7 +259,6 @@ class TicketService
             : null;
 
         // Web users raise tickets as themselves; mobile requests come from the employee.
-        $userId = $requester instanceof User ? $requester->id : null;
 
         $ticket = DB::transaction(function () use ($data, $requester, $userId, $tenantId, $files, $category, $fields, $group, $technicianId, $sla): Ticket {
             $ticket = Ticket::create([
@@ -288,6 +294,10 @@ class TicketService
 
             return $ticket;
         });
+
+        if ($rule) {
+            TicketLogger::log($ticket, TicketLogType::RuleApplied, meta: ['rule' => $rule->name, 'group' => $group->name]);
+        }
 
         if (filled($requester->email)) {
             Mail::to($requester->email)->queue(new TicketCreatedMail($ticket, forTechnician: false));

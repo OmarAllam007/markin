@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Ticketing\Admin\ApprovalRoleController;
+use App\Http\Controllers\Ticketing\Admin\BusinessRuleController;
 use App\Http\Controllers\Ticketing\Admin\CategoryController;
 use App\Http\Controllers\Ticketing\Admin\GroupController;
 use App\Http\Controllers\Ticketing\Admin\PriorityController;
@@ -23,6 +24,8 @@ Route::middleware(['auth', 'verified'])->prefix('ticketing')->name('ticketing.')
         Route::resource('groups', GroupController::class)->except(['show']);
 
         Route::resource('approval-roles', ApprovalRoleController::class)->only(['index', 'store', 'update', 'destroy']);
+        Route::post('business-rules/reorder', [BusinessRuleController::class, 'reorder'])->name('business-rules.reorder');
+        Route::resource('business-rules', BusinessRuleController::class)->only(['index', 'store', 'update', 'destroy']);
         Route::post('request-statuses/reorder', [RequestStatusController::class, 'reorder'])->name('request-statuses.reorder');
         Route::resource('request-statuses', RequestStatusController::class)->only(['index', 'store', 'update', 'destroy']);
 
