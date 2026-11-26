@@ -3,11 +3,13 @@
 use App\Enums\AppModule;
 use App\Models\Attendance;
 use App\Models\AttendancePunch;
+use App\Models\CompanySetting;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Location;
 use App\Models\TenantModule;
 use App\Models\WorkShift;
+use Carbon\Carbon;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 
 uses(RefreshDatabase::class);
@@ -196,4 +198,53 @@ it('keeps the day open after check-out on a multi-session shift', function () {
         ->assertSuccessful()
         ->assertJsonPath('data.today.punch_status', 'checked_out')
         ->assertJsonPath('data.today.day_complete', false);
+});
+
+it('resolves today in the tenant timezone, not the server one', function () {
+    // 22:30 UTC is already 01:30 the next day in Riyadh.
+    Carbon::setTestNow('2026-11-26 22:30:00');
+
+    $employee = Employee::factory()->create();
+    CompanySetting::create(['tenant_id' => $employee->tenant_id, 'timezone' => 'Asia/Riyadh']);
+    Attendance::factory()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $employee->tenant_id,
+        'attendance_date' => '2026-11-27',
+        'check_in_time' => '01:00:00',
+        'check_out_time' => null,
+    ]);
+
+    $this->actingAs($employee, 'sanctum')
+        ->getJson(route('api.employee.me'))
+        ->assertSuccessful()
+        ->assertJsonPath('data.today.date', '2026-11-27')
+        ->assertJsonPath('data.today.punch_status', 'checked_in');
+
+    Carbon::setTestNow();
+});
+
+it('keeps an overnight shift on the day it started until checkout time', function () {
+    Carbon::setTestNow('2026-05-18 03:00:00');
+
+    $shift = WorkShift::factory()->create([
+        'type' => 'fixed',
+        'checkin_time' => '22:00:00',
+        'checkout_time' => '06:00:00',
+    ]);
+    $employee = Employee::factory()->create(['work_shift_id' => $shift->id]);
+    Attendance::factory()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $employee->tenant_id,
+        'attendance_date' => '2026-05-17',
+        'check_in_time' => '22:00:00',
+        'check_out_time' => null,
+    ]);
+
+    $this->actingAs($employee, 'sanctum')
+        ->getJson(route('api.employee.me'))
+        ->assertSuccessful()
+        ->assertJsonPath('data.today.date', '2026-05-17')
+        ->assertJsonPath('data.today.punch_status', 'checked_in');
+
+    Carbon::setTestNow();
 });

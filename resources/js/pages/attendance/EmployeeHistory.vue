@@ -15,6 +15,7 @@ type Row = {
     total_late_minutes: number;
     overtime_minutes: number;
     status: string;
+    has_outside_punch: boolean;
     shift: { id: number; name: string } | null;
 };
 
@@ -184,6 +185,12 @@ const STATUS_BADGE: Record<string, string> = {
                                 <td>
                                     <span :class="['badge', STATUS_BADGE[row.status] ?? 'badge-light']">
                                         {{ enumLabels.status[row.status] ?? row.status }}
+                                    </span>
+                                    <span
+                                        v-if="row.has_outside_punch"
+                                        class="badge badge-light-warning ms-1"
+                                    >
+                                        Outside location
                                     </span>
                                 </td>
                                 <td>{{ row.shift?.name ?? '—' }}</td>

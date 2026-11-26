@@ -193,6 +193,15 @@ class AttendancePunchService
         }
     }
 
+    /**
+     * The attendance day a punch made now would belong to: today in the
+     * tenant's timezone, or yesterday during an overnight shift's tail.
+     */
+    public function currentAttendanceDate(Employee $employee): Carbon
+    {
+        return $this->resolveAttendanceDate($employee, $this->tenantTimezone($employee));
+    }
+
     private function tenantTimezone(Employee $employee): string
     {
         $employee->loadMissing('tenant.settings');

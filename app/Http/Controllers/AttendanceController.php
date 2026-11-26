@@ -484,6 +484,7 @@ class AttendanceController extends Controller
         $attendances = Attendance::query()
             ->where('employee_id', $employee->id)
             ->with(['shift:id,name'])
+            ->withExists(['punches as has_outside_punch' => fn ($q) => $q->where('location_status', PunchLocationStatus::Outside)])
             ->when($filters['status'] ?? null, fn ($q, $s) => $q->where('status', $s))
             ->whereDate('attendance_date', '>=', $from->toDateString())
             ->whereDate('attendance_date', '<=', $to->toDateString())

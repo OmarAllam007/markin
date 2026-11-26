@@ -117,3 +117,21 @@ it('flags and filters attendance days with a punch outside the location', functi
             ->has('attendances.data', 1)
             ->where('attendances.data.0.id', $remoteDay->id));
 });
+
+it('flags days with an outside punch in the employee attendance history', function () {
+    $tenant = Tenant::factory()->create();
+    CompanySetting::create(['tenant_id' => $tenant->id]);
+    $admin = User::factory()->admin($tenant)->create();
+    $employee = Employee::factory()->create(['tenant_id' => $tenant->id]);
+
+    $remoteDay = Attendance::factory()->forEmployee($employee)->forDate(now())->create();
+    AttendancePunch::factory()->forAttendance($remoteDay)->create([
+        'location_status' => PunchLocationStatus::Outside,
+    ]);
+
+    $this->actingAs($admin)
+        ->get(route('employees.attendance.index', $employee))
+        ->assertInertia(fn (AssertableInertia $page) => $page
+            ->component('attendance/EmployeeHistory')
+            ->where('attendances.data.0.has_outside_punch', true));
+});

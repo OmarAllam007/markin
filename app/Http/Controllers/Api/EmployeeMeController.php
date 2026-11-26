@@ -7,19 +7,23 @@ use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
 use App\Models\Employee;
-use Carbon\CarbonImmutable;
+use App\Services\AttendancePunchService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class EmployeeMeController extends Controller
 {
+    public function __construct(private readonly AttendancePunchService $punchService) {}
+
     public function __invoke(Request $request): JsonResponse
     {
         /** @var Employee $employee */
         $employee = $request->user();
         $employee->load(['department:id,name', 'location:id,name', 'workShift:id,name,checkin_time,checkout_time,weekends,allow_multiple_sessions', 'tenant.modules']);
 
-        $today = CarbonImmutable::today();
+        // Same day the punch endpoint would record against, so the status shown
+        // matches what a punch would do (tenant timezone, overnight shifts).
+        $today = $this->punchService->currentAttendanceDate($employee);
         $dayName = strtolower($today->englishDayOfWeek);
         $shift = $employee->workShift;
 
