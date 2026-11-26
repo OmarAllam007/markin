@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\PunchType;
 use App\Helpers\ApiResponse;
 use App\Http\Controllers\Controller;
 use App\Models\Attendance;
@@ -16,7 +17,7 @@ class EmployeeMeController extends Controller
     {
         /** @var Employee $employee */
         $employee = $request->user();
-        $employee->load(['department:id,name', 'location:id,name', 'workShift:id,name,checkin_time,checkout_time,weekends', 'tenant.modules']);
+        $employee->load(['department:id,name', 'location:id,name', 'workShift:id,name,checkin_time,checkout_time,weekends,allow_multiple_sessions', 'tenant.modules']);
 
         $today = CarbonImmutable::today();
         $dayName = strtolower($today->englishDayOfWeek);
@@ -25,9 +26,17 @@ class EmployeeMeController extends Controller
         $attendance = Attendance::query()
             ->where('employee_id', $employee->id)
             ->whereDate('attendance_date', $today)
+            ->with('shift:id,allow_multiple_sessions')
             ->first();
 
         $punchStatus = $this->resolvePunchStatus($attendance, $shift, $dayName);
+
+        // Mirrors AttendancePunchService::validatePunchSequence: a single-session
+        // shift refuses a second check-in once the day has a check-out.
+        $sessionShift = $attendance?->shift ?? $shift;
+        $dayComplete = $punchStatus === 'checked_out'
+            && $sessionShift !== null
+            && ! $sessionShift->allow_multiple_sessions;
 
         return ApiResponse::success('Employee profile retrieved.', [
             'enabled_modules' => $employee->tenant
@@ -55,6 +64,7 @@ class EmployeeMeController extends Controller
             'today' => [
                 'date' => $today->toDateString(),
                 'punch_status' => $punchStatus,
+                'day_complete' => $dayComplete,
                 'check_in_time' => $attendance?->check_in_time,
                 'check_out_time' => $attendance?->check_out_time,
                 'status' => $attendance?->status?->value,
@@ -79,6 +89,15 @@ class EmployeeMeController extends Controller
             }
 
             return 'not_checked_in';
+        }
+
+        // The last punch is the truth: on a multi-session day the attendance
+        // keeps the first check-in and last check-out times while the employee
+        // is checked in again.
+        $lastPunch = $attendance->punches()->latest('id')->first();
+
+        if ($lastPunch) {
+            return $lastPunch->type === PunchType::CheckIn ? 'checked_in' : 'checked_out';
         }
 
         if ($attendance->check_in_time && $attendance->check_out_time) {

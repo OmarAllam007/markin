@@ -2,6 +2,7 @@
 
 use App\Enums\AppModule;
 use App\Models\Attendance;
+use App\Models\AttendancePunch;
 use App\Models\Department;
 use App\Models\Employee;
 use App\Models\Location;
@@ -131,4 +132,68 @@ it('includes department and location when assigned', function () {
         ->assertSuccessful()
         ->assertJsonPath('data.employee.department.id', $department->id)
         ->assertJsonPath('data.employee.location.id', $location->id);
+});
+
+it('reports checked_in when the employee checks in again on a multi-session day', function () {
+    $shift = WorkShift::factory()->create(['allow_multiple_sessions' => true]);
+    $employee = Employee::factory()->create(['work_shift_id' => $shift->id]);
+    $attendance = Attendance::factory()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $employee->tenant_id,
+        'shift_id' => $shift->id,
+        'attendance_date' => today()->toDateString(),
+        'check_in_time' => '09:00:00',
+        'check_out_time' => '12:00:00',
+    ]);
+    AttendancePunch::factory()->forAttendance($attendance)->create();
+    AttendancePunch::factory()->forAttendance($attendance)->checkOut()->create();
+    AttendancePunch::factory()->forAttendance($attendance)->create();
+
+    $this->actingAs($employee, 'sanctum')
+        ->getJson(route('api.employee.me'))
+        ->assertSuccessful()
+        ->assertJsonPath('data.today.punch_status', 'checked_in')
+        ->assertJsonPath('data.today.day_complete', false);
+});
+
+it('marks the day complete after check-out on a single-session shift', function () {
+    $shift = WorkShift::factory()->create(['allow_multiple_sessions' => false]);
+    $employee = Employee::factory()->create(['work_shift_id' => $shift->id]);
+    $attendance = Attendance::factory()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $employee->tenant_id,
+        'shift_id' => $shift->id,
+        'attendance_date' => today()->toDateString(),
+        'check_in_time' => '09:00:00',
+        'check_out_time' => '17:00:00',
+    ]);
+    AttendancePunch::factory()->forAttendance($attendance)->create();
+    AttendancePunch::factory()->forAttendance($attendance)->checkOut()->create();
+
+    $this->actingAs($employee, 'sanctum')
+        ->getJson(route('api.employee.me'))
+        ->assertSuccessful()
+        ->assertJsonPath('data.today.punch_status', 'checked_out')
+        ->assertJsonPath('data.today.day_complete', true);
+});
+
+it('keeps the day open after check-out on a multi-session shift', function () {
+    $shift = WorkShift::factory()->create(['allow_multiple_sessions' => true]);
+    $employee = Employee::factory()->create(['work_shift_id' => $shift->id]);
+    $attendance = Attendance::factory()->create([
+        'employee_id' => $employee->id,
+        'tenant_id' => $employee->tenant_id,
+        'shift_id' => $shift->id,
+        'attendance_date' => today()->toDateString(),
+        'check_in_time' => '09:00:00',
+        'check_out_time' => '12:00:00',
+    ]);
+    AttendancePunch::factory()->forAttendance($attendance)->create();
+    AttendancePunch::factory()->forAttendance($attendance)->checkOut()->create();
+
+    $this->actingAs($employee, 'sanctum')
+        ->getJson(route('api.employee.me'))
+        ->assertSuccessful()
+        ->assertJsonPath('data.today.punch_status', 'checked_out')
+        ->assertJsonPath('data.today.day_complete', false);
 });
