@@ -10,6 +10,7 @@ use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LocationCheckController;
 use App\Http\Controllers\Api\PushTokenController;
 use App\Http\Controllers\Api\Ticketing\EmployeeTicketApprovalController;
+use App\Http\Controllers\Api\Ticketing\EmployeeTicketAttachmentController;
 use App\Http\Controllers\Api\Ticketing\EmployeeTicketController;
 use App\Http\Controllers\Api\Ticketing\TicketCategoryController;
 use App\Http\Controllers\Api\Ticketing\TicketCategoryFormController;
@@ -60,8 +61,14 @@ Route::middleware(['auth:sanctum', 'api.employee.active'])->group(function () {
         Route::post('{ticket}/approvals/{approval}/respond', [EmployeeTicketApprovalController::class, 'respond'])->middleware('throttle:10,1')->name('approvals.respond');
         Route::get('{ticket}/reply-options', [EmployeeTicketController::class, 'replyOptions'])->name('reply-options');
         Route::post('{ticket}/messages', [EmployeeTicketController::class, 'storeMessage'])->name('messages.store');
+        Route::get('{ticket}/attachments/{attachment}/link', [EmployeeTicketAttachmentController::class, 'link'])->name('attachments.link');
     });
 });
+
+// Opened by the phone's browser, which has no Sanctum token; the signature is the access check.
+Route::get('employee/attachments/{attachment}/file', [EmployeeTicketAttachmentController::class, 'file'])
+    ->middleware(['signed:relative', 'throttle:60,1'])
+    ->name('api.employee.attachments.file');
 
 Route::prefix('employee/auth')->name('api.employee.auth.')->middleware('throttle:5,1')->group(function () {
     Route::post('request-otp', [EmployeeAuthController::class, 'requestOtp'])->name('request-otp');

@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Api\StoreEmployeeTicketRequest;
 use App\Models\Employee;
 use App\Models\Ticket;
+use App\Services\TicketAccess;
 use App\Services\TicketMessageService;
 use App\Services\TicketService;
 use Illuminate\Http\JsonResponse;
@@ -51,14 +52,14 @@ class EmployeeTicketController extends Controller
         $employee = $request->user();
         $isRequester = $ticket->employee_id === $employee->id;
         // Approvers open the ticket from their approval push; only the requester can reply.
-        abort_unless($ticket->tenant_id === $employee->tenant_id
-            && ($isRequester || $ticket->approvals()->where('approver_employee_id', $employee->id)->exists()), 404);
+        abort_unless(TicketAccess::employeeCanView($employee, $ticket), 404);
 
         // Full catalog rows: formFields() needs ticket_type and the form_fields config.
         $ticket->load([
             'category', 'subcategory', 'item', 'technician:id,name', 'group:id,name', 'priority:id,name,color',
             'attachments:id,attachable_type,attachable_id,file_name,file_size,mime_type',
             'approvals' => fn ($query) => $query->orderBy('stage_order')->orderBy('id'),
+            'approvals.attachments:id,attachable_type,attachable_id,file_name,file_size,mime_type',
             'employee:id,english_name,arabic_name,employee_number', 'approvals.approver:id,name', 'approvals.approverEmployee:id,english_name,arabic_name',
             'requestStatus:id,name,name_translations,type,color',
             'messages' => fn ($query) => $query->orderBy('id'),
@@ -108,6 +109,7 @@ class EmployeeTicketController extends Controller
                 'comments' => $approval->comments,
                 'approver' => $approval->approver?->name ?? $approval->approverEmployee?->english_name,
                 'acted_at' => $approval->acted_at?->toIso8601String(),
+                'attachments' => $approval->attachments->map->only(['id', 'file_name', 'file_size', 'mime_type']),
             ]),
             'messages' => $ticket->messages->map(fn ($m) => [
                 'id' => $m->id,

@@ -112,13 +112,41 @@ const deleteApproval = (a: Approval) => {
     }
 };
 
+// ---------- files ----------
+// Every file on the ticket in one list: the request's own, those sent with
+// replies, and those sent to approvers. The source badge says which.
+type FileSource = 'request' | 'reply' | 'approval';
+type TicketFile = { id: number; file_name: string; file_size: number; source: FileSource; detail: string; deletable: boolean };
+
+const allFiles = computed<TicketFile[]>(() => [
+    ...props.ticket.attachments.map(a => ({
+        ...a, source: 'request' as const, detail: a.uploader?.name ?? '—', deletable: true,
+    })),
+    ...props.ticket.messages.flatMap(m => m.attachments.map(a => ({
+        ...a, source: 'reply' as const,
+        detail: `${m.user?.name ?? m.employee?.english_name ?? 'Unknown'} · ${formatDateTime(m.created_at)}`,
+        deletable: false,
+    }))),
+    ...props.ticket.approvals.flatMap(ap => ap.attachments.map(a => ({
+        ...a, source: 'approval' as const,
+        detail: `Stage ${ap.stage_order} · ${ap.approver_employee?.english_name ?? ap.approver?.name ?? '—'}`,
+        deletable: false,
+    }))),
+]);
+
+const fileSource: Record<FileSource, { label: string; badge: string }> = {
+    request: { label: 'Request', badge: 'badge-light-primary' },
+    reply: { label: 'Reply', badge: 'badge-light-info' },
+    approval: { label: 'Approval', badge: 'badge-light-warning' },
+};
+
 // ---------- tabs ----------
 const tabs = computed(() => [
     { key: 'overview', label: 'Request', icon: 'ki-document', count: null },
     { key: 'conversation', label: 'Conversation', icon: 'ki-messages', count: props.ticket.messages.length },
     { key: 'approvals', label: 'Approvals', icon: 'ki-verify', count: props.ticket.approvals.length },
     { key: 'activity', label: 'Activity', icon: 'ki-time', count: props.logs.length },
-    { key: 'files', label: 'Files', icon: 'ki-paper-clip', count: props.ticket.attachments.length },
+    { key: 'files', label: 'Files', icon: 'ki-paper-clip', count: allFiles.value.length },
 ] as const);
 type TabKey = (typeof tabs.value)[number]['key'];
 
@@ -166,7 +194,7 @@ return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
 
-const deleteAttachment = (a: Attachment) => {
+const deleteAttachment = (a: { id: number; file_name: string }) => {
     if (!window.confirm(`Remove "${a.file_name}"?`)) {
 return;
 }
@@ -399,24 +427,28 @@ const actionColors: Record<string, string> = {
                 >
                 <div class="card ticket-panel">
                     <div class="ticket-card-heading">
-                        <h3>Attachments <span class="ticket-count">{{ ticket.attachments.length }}</span></h3>
+                        <h3>Attachments <span class="ticket-count">{{ allFiles.length }}</span></h3>
                     </div>
                     <div class="card-body ticket-card-content">
                         <div
-                            v-if="ticket.attachments.length === 0"
+                            v-if="allFiles.length === 0"
                             class="text-muted text-center py-6"
                         >No attachments.</div>
                         <div
-                            v-for="a in ticket.attachments"
+                            v-for="a in allFiles"
                             :key="a.id"
                             class="ticket-file d-flex align-items-center gap-3 mb-3 p-3"
                         >
                             <i class="ki-outline ki-file fs-2 text-primary" />
-                            <div class="flex-grow-1">
-                                <a :href="downloadAttachment.url({ attachment: a.id })" class="fw-bold text-gray-800 text-hover-primary fs-7">{{ a.file_name }}</a>
-                                <div class="text-muted fs-8">{{ formatBytes(a.file_size) }} · {{ a.uploader?.name ?? '—' }}</div>
+                            <div class="flex-grow-1 min-w-0">
+                                <div class="d-flex align-items-center gap-2 flex-wrap">
+                                    <a :href="downloadAttachment.url({ attachment: a.id })" class="fw-bold text-gray-800 text-hover-primary fs-7">{{ a.file_name }}</a>
+                                    <span :class="['badge', fileSource[a.source].badge]">{{ fileSource[a.source].label }}</span>
+                                </div>
+                                <div class="text-muted fs-8">{{ formatBytes(a.file_size) }} · {{ a.detail }}</div>
                             </div>
                             <button
+                                v-if="a.deletable"
                                 type="button"
                                 class="btn btn-sm btn-light btn-active-light-danger"
                                 @click="deleteAttachment(a)"

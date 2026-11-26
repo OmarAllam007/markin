@@ -5,6 +5,7 @@ namespace App\Services;
 use App\Enums\PermissionAction;
 use App\Enums\PermissionModule;
 use App\Enums\TicketGroupType;
+use App\Models\Employee;
 use App\Models\Tenant;
 use App\Models\Ticket;
 use App\Models\TicketGroup;
@@ -51,6 +52,18 @@ class TicketAccess
             ->where('technician_id', $user->id)
             ->orWhereIn('group_id', self::groupIds($user, $tenantId))
             ->orWhere('requester_id', $user->id));
+    }
+
+    /**
+     * Employee app: the requester, or an employee asked to approve it. Opening
+     * the ticket page and opening its files both check this, so they can never
+     * drift apart.
+     */
+    public static function employeeCanView(Employee $employee, Ticket $ticket): bool
+    {
+        return $ticket->tenant_id === $employee->tenant_id
+            && ($ticket->employee_id === $employee->id
+                || $ticket->approvals()->where('approver_employee_id', $employee->id)->exists());
     }
 
     public static function canView(User $user, Ticket $ticket): bool
