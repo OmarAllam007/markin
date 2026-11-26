@@ -9,6 +9,7 @@ use App\Http\Controllers\Api\EmployeeNotificationController;
 use App\Http\Controllers\Api\LeaveController;
 use App\Http\Controllers\Api\LocationCheckController;
 use App\Http\Controllers\Api\PushTokenController;
+use App\Http\Controllers\Api\Ticketing\EmployeeTicketApprovalController;
 use App\Http\Controllers\Api\Ticketing\EmployeeTicketController;
 use App\Http\Controllers\Api\Ticketing\TicketCategoryController;
 use App\Http\Controllers\Api\Ticketing\TicketCategoryFormController;
@@ -56,6 +57,7 @@ Route::middleware(['auth:sanctum', 'api.employee.active'])->group(function () {
         Route::get('/', [EmployeeTicketController::class, 'index'])->name('index');
         Route::post('/', [EmployeeTicketController::class, 'store'])->name('store');
         Route::get('{ticket}', [EmployeeTicketController::class, 'show'])->name('show');
+        Route::post('{ticket}/approvals/{approval}/respond', [EmployeeTicketApprovalController::class, 'respond'])->middleware('throttle:10,1')->name('approvals.respond');
         Route::get('{ticket}/reply-options', [EmployeeTicketController::class, 'replyOptions'])->name('reply-options');
         Route::post('{ticket}/messages', [EmployeeTicketController::class, 'storeMessage'])->name('messages.store');
     });
