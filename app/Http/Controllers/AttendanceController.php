@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\DataTransferObjects\AttendanceCalculationInput;
 use App\Enums\AttendanceSource;
 use App\Enums\AttendanceStatus;
+use App\Enums\PunchLocationStatus;
 use App\Http\Requests\IndexAttendanceRequest;
 use App\Http\Requests\StoreAttendanceRequest;
 use App\Http\Requests\UpdateAttendanceRequest;
@@ -71,6 +72,7 @@ class AttendanceController extends Controller
                 'creator:id,name',
                 'approver:id,name',
             ])
+            ->withExists(['punches as has_outside_punch' => fn ($q) => $q->where('location_status', PunchLocationStatus::Outside)])
             ->when($filters['employee_id'] ?? null, fn ($q, $id) => $q->where('employee_id', $id))
             ->when($filters['department_id'] ?? null, fn ($q, $id) => $q->whereHas(
                 'employee',
@@ -86,6 +88,10 @@ class AttendanceController extends Controller
             ))
             ->when($filters['status'] ?? null, fn ($q, $s) => $q->where('status', $s))
             ->when($filters['attendance_source'] ?? null, fn ($q, $s) => $q->where('attendance_source', $s))
+            ->when($filters['outside_location'] ?? false, fn ($q) => $q->whereHas(
+                'punches',
+                fn ($q) => $q->where('location_status', PunchLocationStatus::Outside),
+            ))
             ->whereDate('attendance_date', '>=', $from->toDateString())
             ->whereDate('attendance_date', '<=', $to->toDateString())
             ->orderByDesc('attendance_date')
@@ -116,6 +122,7 @@ class AttendanceController extends Controller
                 'location_id' => $filters['location_id'] ?? null,
                 'status' => $filters['status'] ?? null,
                 'attendance_source' => $filters['attendance_source'] ?? null,
+                'outside_location' => (bool) ($filters['outside_location'] ?? false),
                 'date_from' => $from->toDateString(),
                 'date_to' => $to->toDateString(),
             ],
@@ -289,6 +296,8 @@ class AttendanceController extends Controller
                 'is_mocked' => $punch->is_mocked,
                 'is_rooted' => $punch->is_rooted,
                 'is_emulator' => $punch->is_emulator,
+                'location_status' => $punch->location_status->value,
+                'distance_from_location_m' => $punch->distance_from_location_m,
                 'device_name' => $punch->device_name,
                 'note' => $punch->note,
             ])->all(),
@@ -542,6 +551,7 @@ class AttendanceController extends Controller
                 'location_id' => null,
                 'status' => null,
                 'attendance_source' => null,
+                'outside_location' => false,
                 'date_from' => CarbonImmutable::now()->startOfMonth()->toDateString(),
                 'date_to' => CarbonImmutable::now()->endOfMonth()->toDateString(),
             ],

@@ -25,6 +25,7 @@ type AttendanceRow = {
     status: string;
     attendance_source: string;
     is_locked: boolean;
+    has_outside_punch: boolean;
     employee: {
         english_name: string;
         arabic_name: string;
@@ -61,6 +62,7 @@ const props = defineProps<{
         location_id: number | null;
         status: string | null;
         attendance_source: string | null;
+        outside_location: boolean;
         date_from: string;
         date_to: string;
     };
@@ -87,6 +89,7 @@ const filterForm = useForm({
     location_id: props.filters?.location_id ?? null as number | null,
     status: props.filters?.status ?? null as string | null,
     attendance_source: props.filters?.attendance_source ?? null as string | null,
+    outside_location: props.filters?.outside_location ?? false,
     date_from: props.filters?.date_from ?? '',
     date_to: props.filters?.date_to ?? '',
 });
@@ -99,6 +102,7 @@ const submitFilters = () => {
     if (filterForm.location_id) q.location_id = String(filterForm.location_id);
     if (filterForm.status) q.status = filterForm.status;
     if (filterForm.attendance_source) q.attendance_source = filterForm.attendance_source;
+    if (filterForm.outside_location) q.outside_location = '1';
     if (filterForm.date_from) q.date_from = filterForm.date_from;
     if (filterForm.date_to) q.date_to = filterForm.date_to;
     filterForm.get(attendancesIndex.url({ query: q }), {
@@ -117,6 +121,7 @@ watch(
         filterForm.location_id,
         filterForm.status,
         filterForm.attendance_source,
+        filterForm.outside_location,
     ],
     () => debouncedSubmit(),
 );
@@ -323,6 +328,16 @@ const STATUS_BADGE: Record<string, string> = {
                             </option>
                         </select>
                     </div>
+                    <div class="col-md-6 col-xl-3">
+                        <label class="form-label fs-7">Punch location</label>
+                        <select
+                            v-model="filterForm.outside_location"
+                            class="form-select form-select-solid"
+                        >
+                            <option :value="false">All</option>
+                            <option :value="true">Outside location only</option>
+                        </select>
+                    </div>
                 </div>
             </div>
             <div class="card-body py-0">
@@ -370,6 +385,12 @@ const STATUS_BADGE: Record<string, string> = {
                                         class="badge badge-light-dark ms-1"
                                     >
                                         Locked
+                                    </span>
+                                    <span
+                                        v-if="row.has_outside_punch"
+                                        class="badge badge-light-warning ms-1"
+                                    >
+                                        Outside location
                                     </span>
                                 </td>
                                 <td class="fs-8 text-gray-600">

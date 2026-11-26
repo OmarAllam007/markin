@@ -67,6 +67,8 @@ const props = defineProps<{
         is_mocked: boolean;
         is_rooted: boolean;
         is_emulator: boolean;
+        location_status: 'inside' | 'outside' | 'unknown';
+        distance_from_location_m: number | null;
         device_name: string | null;
         note: string | null;
     }[];
@@ -91,6 +93,10 @@ function formatHm(m: number): string {
 
 function punchTime(iso: string): string {
     return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function formatDistance(metres: number): string {
+    return metres < 1000 ? `${metres} m` : `${Math.round(metres / 1000).toLocaleString()} km`;
 }
 
 function mapsUrl(lat: string, lng: string): string {
@@ -294,6 +300,12 @@ function remove(): void {
                                                 {{ punch.location ?? 'On map' }}
                                             </a>
                                             <span v-else class="text-gray-500">—</span>
+                                            <div v-if="punch.location_status === 'outside' || punch.is_mocked" class="d-flex flex-wrap gap-1 mt-1">
+                                                <span v-if="punch.location_status === 'outside'" class="badge badge-light-warning">
+                                                    Outside location<template v-if="punch.distance_from_location_m !== null"> · {{ formatDistance(punch.distance_from_location_m) }}</template>
+                                                </span>
+                                                <span v-if="punch.is_mocked" class="badge badge-light-danger">Faked GPS</span>
+                                            </div>
                                         </td>
                                         <td class="text-gray-600">
                                             {{ punch.gps_accuracy ? `±${Math.round(Number(punch.gps_accuracy))}m` : '—' }}
@@ -301,7 +313,6 @@ function remove(): void {
                                         <td>
                                             <div class="text-gray-600">{{ punch.device_name ?? '—' }}</div>
                                             <div class="d-flex flex-wrap gap-1 mt-1">
-                                                <span v-if="punch.is_mocked" class="badge badge-light-danger">Faked GPS</span>
                                                 <span v-if="punch.is_rooted" class="badge badge-light-warning">Rooted</span>
                                                 <span v-if="punch.is_emulator" class="badge badge-light-warning">Emulator</span>
                                             </div>

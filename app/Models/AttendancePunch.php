@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AttendanceSource;
+use App\Enums\PunchLocationStatus;
 use App\Enums\PunchType;
 use Database\Factories\AttendancePunchFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
@@ -24,6 +25,8 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'is_mocked',
     'is_rooted',
     'is_emulator',
+    'location_status',
+    'distance_from_location_m',
 ])]
 class AttendancePunch extends Model
 {
@@ -42,6 +45,8 @@ class AttendancePunch extends Model
             'is_mocked' => 'boolean',
             'is_rooted' => 'boolean',
             'is_emulator' => 'boolean',
+            'location_status' => PunchLocationStatus::class,
+            'distance_from_location_m' => 'integer',
         ];
     }
 

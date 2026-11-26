@@ -6,6 +6,7 @@ use App\Enums\AttendancePunchLogStatus;
 use App\Enums\AttendanceSource;
 use App\Enums\AttendanceStatus;
 use App\Enums\NotificationType;
+use App\Enums\PunchLocationStatus;
 use App\Enums\PunchType;
 use App\Enums\ShiftType;
 use App\Exceptions\EarlyCheckoutWarningException;
@@ -62,6 +63,8 @@ class AttendancePunchService
                 ? $this->resolveLocation($employee, $latitude, $longitude)
                 : null;
 
+            [$locationStatus, $distanceFromLocation] = $this->locationStatus($employee, $latitude, $longitude, $punchLocation);
+
             $resolvedDeviceName = $deviceName ?? $employee->device_name;
 
             $punch = AttendancePunch::create([
@@ -74,6 +77,8 @@ class AttendancePunchService
                 'longitude' => $longitude,
                 'device_name' => $resolvedDeviceName,
                 'note' => $reason,
+                'location_status' => $locationStatus,
+                'distance_from_location_m' => $distanceFromLocation,
                 ...$integrity->toAttributes(),
             ]);
 
@@ -420,6 +425,52 @@ class AttendancePunchService
         }
 
         return null;
+    }
+
+    /**
+     * Records where the punch happened relative to the employee's location(s).
+     * Remote employees pass validation from anywhere; this keeps the fact visible.
+     *
+     * @return array{0: PunchLocationStatus, 1: ?int}
+     */
+    private function locationStatus(Employee $employee, ?float $latitude, ?float $longitude, ?Location $matchedLocation): array
+    {
+        if ($latitude === null || $longitude === null) {
+            return [PunchLocationStatus::Unknown, null];
+        }
+
+        if ($matchedLocation) {
+            return [PunchLocationStatus::Inside, 0];
+        }
+
+        $candidates = $employee->allow_any_location_checkin
+            ? Location::where('tenant_id', $employee->tenant_id)->get()
+            : collect([$employee->location])->filter();
+
+        if ($candidates->isEmpty()) {
+            return [PunchLocationStatus::Unknown, null];
+        }
+
+        $distance = $candidates->min(fn (Location $location) => $this->distanceToBounds($latitude, $longitude, $location->coordinates));
+
+        return [PunchLocationStatus::Outside, (int) round($distance)];
+    }
+
+    /**
+     * Metres from a point to the nearest edge of a bounding box (haversine).
+     *
+     * @param  array{north: float, south: float, east: float, west: float}  $coords
+     */
+    private function distanceToBounds(float $lat, float $lng, array $coords): float
+    {
+        $nearestLat = max($coords['south'], min($coords['north'], $lat));
+        $nearestLng = max($coords['west'], min($coords['east'], $lng));
+
+        $dLat = deg2rad($nearestLat - $lat);
+        $dLng = deg2rad($nearestLng - $lng);
+        $a = sin($dLat / 2) ** 2 + cos(deg2rad($lat)) * cos(deg2rad($nearestLat)) * sin($dLng / 2) ** 2;
+
+        return 6_371_000 * 2 * atan2(sqrt($a), sqrt(1 - $a));
     }
 
     private function validatePunchSequence(Attendance $attendance, PunchType $type): void
